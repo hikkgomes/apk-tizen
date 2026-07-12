@@ -15,6 +15,13 @@ dist/
 *.wgt
 .buildResult/
 .project
+.manifest.tmp
+
+# Tizen Certificate and Signatures
+*.p12
+*.pem
+author-signature.xml
+signature1.xml
 
 # Local configuration overrides
 .tizen.path.config

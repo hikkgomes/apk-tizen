@@ -107,8 +107,10 @@
                 root.webapis.avplay.open(url);
                 log("AVPlay open success");
 
-                // Set full screen layout
-                root.webapis.avplay.setDisplayRect(0, 0, 1920, 1080);
+                // Set full screen layout correctly for any display resolution
+                var screenWidth = window.innerWidth || 1920;
+                var screenHeight = window.innerHeight || 1080;
+                root.webapis.avplay.setDisplayRect(0, 0, screenWidth, screenHeight);
                 root.webapis.avplay.setDisplayMethod("PLAYER_DISPLAY_MODE_LETTER_BOX");
 
                 // Apply custom user-agent and cookie properties if provided
@@ -174,7 +176,12 @@
                     log("AVPlay prepare success, starting playback");
                     isPrepared = true;
                     try {
-                        root.webapis.avplay.play();
+                        var state = root.webapis.avplay.getState();
+                        if (state === "READY" || state === "PAUSED") {
+                            root.webapis.avplay.play();
+                        } else {
+                            log("Unexpected state after prepare: " + state);
+                        }
                     } catch (playError) {
                         log("AVPlay play failed: " + playError.message);
                         if (callbacks.onError) {
@@ -182,9 +189,10 @@
                         }
                     }
                 }, function (prepareError) {
-                    log("AVPlay prepare failed: " + prepareError.name + " (" + prepareError.message + ")");
+                    var msg = prepareError ? (prepareError.name + " (" + prepareError.message + ")") : "Unknown Error";
+                    log("AVPlay prepare failed: " + msg);
                     if (callbacks.onError) {
-                        callbacks.onError("Could not prepare the video stream");
+                        callbacks.onError("Could not prepare the video stream: " + msg);
                     }
                 });
 
@@ -225,12 +233,15 @@
             try {
                 var state = root.webapis.avplay.getState();
                 log("AVPlay current state: " + state);
-                if (state !== "NONE" && state !== "IDLE") {
+                if (state === "PLAYING" || state === "PAUSED") {
                     root.webapis.avplay.stop();
                     log("AVPlay stop success");
                 }
-                root.webapis.avplay.close();
-                log("AVPlay close success");
+                state = root.webapis.avplay.getState();
+                if (state !== "NONE" && state !== "IDLE") {
+                    root.webapis.avplay.close();
+                    log("AVPlay close success");
+                }
             } catch (error) {
                 log("AVPlay stop error: " + error.message);
             }
@@ -253,6 +264,10 @@
         log("Pause requested");
         if (isTizen) {
             try {
+                if (getDuration() <= 0) {
+                    log("Ignoring pause request for live stream");
+                    return;
+                }
                 if (root.webapis.avplay.getState() === "PLAYING") {
                     root.webapis.avplay.pause();
                 }
@@ -288,7 +303,18 @@
         log("Seek requested to: " + ms + "ms");
         if (isTizen) {
             try {
-                root.webapis.avplay.jumpForward(ms);
+                if (getDuration() <= 0) {
+                    log("Ignoring seek request for live stream");
+                    return;
+                }
+                var state = root.webapis.avplay.getState();
+                if (state === "PLAYING" || state === "PAUSED") {
+                    if (ms > 0) {
+                        root.webapis.avplay.jumpForward(ms);
+                    } else if (ms < 0) {
+                        root.webapis.avplay.jumpBackward(Math.abs(ms));
+                    }
+                }
             } catch (error) {
                 log("AVPlay seek error: " + error.message);
             }

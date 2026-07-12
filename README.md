@@ -62,43 +62,55 @@ node test/api-client.test.js
 
 ## 📦 Building and Packaging (.wgt)
 
-Tizen web apps are packaged as Widget (`.wgt`) zip archives and must be cryptographically signed.
+Tizen web apps are packaged as Widget (`.wgt`) zip archives and must be cryptographically signed with both an Author Certificate and a Samsung Distributor Certificate. An author certificate alone is **not enough**. The distributor certificate must be linked to your specific television's Unique Device ID (DUID).
 
-### Step 1: Package the Widget (Unsigned)
-Zip the app contents into a `.wgt` archive (excluding git/test files and raw APK analysis tools):
-```bash
-zip -r SportzXTV.wgt assets css js index.html config.xml icon.png -x "*.DS_Store"
-```
-
-### Step 2: Configure Tizen CLI Security Profile
-Before signing, add a security profile using the Tizen SDK CLI. You can use your existing developer certificate located in your Downloads folder:
-```bash
-tizen security-profiles add \
-  -n SportzXProfile \
-  -a ~/Downloads/DE_OLIVEIRA_GOMES_HENRIQUE___Z2810041K.p12 \
-  -p <your_certificate_password>
-```
-
-### Step 3: Sign the WGT Package
-Sign the package with your profile:
-```bash
-tizen package -t wgt -s SportzXProfile -- SportzXTV.wgt
-```
-
----
-
-## 📺 Sideloading onto Samsung TV
-
-### Option A: Using the Tizen Studio CLI
+### Step 1: Connect to the TV and Find the DUID
 1. Enable **Developer Mode** on your Samsung TV (open the Apps panel, press `12345` on the remote, set to **ON**, and input your PC's IP address). Reboot the TV.
-2. Connect to the TV:
+2. Connect to the TV using the Smart Development Bridge (`sdb`):
    ```bash
    sdb connect <tv_ip_address>
    ```
-3. Install the signed package:
+3. List connected devices to ensure connection and find the device name:
    ```bash
-   tizen install -n SportzXTV.wgt -t <tv_device_name>
+   sdb devices
+   ```
+4. Get the TV's DUID (replace `<tv_device_name>` with the name from the previous step):
+   ```bash
+   sdb -s <tv_device_name> shell default_get_duid
    ```
 
-### Option B: Using the TizenBrew Installer
-Launch `TizenBrewInstaller-macos-arm64` located in your Downloads, configure your TV's developer settings, and use its web UI (`http://localhost:8091`) to select and flash `SportzXTV.wgt` directly.
+### Step 2: Create a Samsung Certificate Profile
+Use the Tizen Studio Certificate Manager to create a proper security profile containing both certificates:
+1. Open Tizen Studio Certificate Manager.
+2. Create a new Samsung certificate profile (e.g., `SportzXProfile`).
+3. Import your Author Certificate (`/path/to/author-certificate.p12`).
+4. Generate a new Samsung Distributor Certificate, ensuring you add your TV's DUID to the allowed devices list.
+
+### Step 3: Build the Project
+Use the Tizen CLI to build the web application into a staging directory:
+```bash
+tizen build-web -- /path/to/project
+```
+
+### Step 4: Package the Signed .wgt
+Package the `.buildResult` directory and sign it with your security profile:
+```bash
+tizen package -t wgt -s SportzXProfile -- /path/to/project/.buildResult
+```
+This will generate `SportzX TV.wgt` inside the `.buildResult` directory.
+
+---
+
+## 📺 Sideloading and Testing
+
+### Installing the Package
+Install the signed widget onto your connected TV:
+```bash
+tizen install -n "/path/to/project/.buildResult/SportzX TV.wgt" -t <tv_device_name>
+```
+
+### Reading Application Logs
+To view JavaScript console logs and debug the application while it's running on the TV:
+```bash
+sdb -s <tv_device_name> dlog
+```

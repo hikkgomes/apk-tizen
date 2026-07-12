@@ -8,7 +8,7 @@
 
     <tizen:application id="SPRTXTV001.SportzXTV"
                        package="SPRTXTV001"
-                       required_version="3.0"/>
+                       required_version="5.5"/>
     <content src="index.html"/>
     <feature name="http://tizen.org/feature/screen.size.all"/>
     <icon src="icon.png"/>

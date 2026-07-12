@@ -1,0 +1,13 @@
+.git
+.buildResult
+SportzX_v2.5.apk
+androguard.db
+androguard.db-shm
+androguard.db-wal
+androguard.log
+test
+*.p12
+*.pem
+.gitignore
+README.md
+.impeccable.md

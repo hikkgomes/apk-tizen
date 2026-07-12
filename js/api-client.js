@@ -334,7 +334,7 @@
 
         if (type === 4) {
             if (!resolved.api) {
-                return Promise.resolve(resolved);
+                return Promise.reject(new Error("Stream type 4 missing API URL"));
             }
             return xhrText("GET", replaceApiToken(resolved.api, resolved.link), resolved.headers, self.timeoutMs).then(function (text) {
                 var payload = parseJson(text, "Playback resolver response");
@@ -343,8 +343,8 @@
                 }
                 resolved.link = String(payload.playback_url);
                 return resolved;
-            }).catch(function () {
-                return resolved;
+            }).catch(function (err) {
+                throw new Error("Type 4 stream resolution failed: " + err.message);
             });
         }
 
@@ -356,8 +356,8 @@
                 }
                 resolved.link = decodeEscapedUrl(match[1]);
                 return resolved;
-            }).catch(function () {
-                return resolved;
+            }).catch(function (err) {
+                throw new Error("Type 6 stream extraction failed: " + err.message);
             });
         }
 

@@ -11,6 +11,7 @@
     var activeDialog = null; // 'stream', 'settings', 'exit', 'player'
     var selectedEvent = null;
     var selectedStream = null;
+    var activeStreams = [];
     var playerControlTimer = null;
     var clockTimer = null;
 
@@ -251,13 +252,30 @@
         }, 50);
     }
 
+    function escapeHTML(str) {
+        if (str === null || str === undefined) return "";
+        return String(str).replace(/[&<>"']/g, function(match) {
+            return {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[match];
+        });
+    }
+
+    function escapeAttr(str) {
+        return escapeHTML(str);
+    }
+
     function renderCategoryRail() {
         if (!categoryRail) return;
         var html = "";
         allCategories.forEach(function (cat) {
             var activeClass = cat === activeCategory ? " is-active" : "";
-            html += '<button type="button" class="filter-chip focusable' + activeClass + '" tabindex="-1" data-filter-cat="' + cat + '">' +
-                    cat +
+            html += '<button type="button" class="filter-chip focusable' + activeClass + '" tabindex="-1" data-filter-cat="' + escapeAttr(cat) + '">' +
+                    escapeHTML(cat) +
                     '</button>';
         });
         categoryRail.innerHTML = html;
@@ -362,20 +380,20 @@
 
             var feedCount = event.formats.length + event.formatsNew.length;
 
-            html += '<div role="button" class="event-row focusable" tabindex="-1" data-event-id="' + event.id + '" ';
+            var baseClass = "event-row focusable";
             if (isLive) {
-                html += 'class="event-row focusable is-live">';
-            } else {
-                html += '>';
+                baseClass += " is-live";
             }
+
+            html += '<div role="button" class="' + baseClass + '" tabindex="-1" data-event-id="' + escapeAttr(event.id) + '">';
 
             html += '  <div class="event-time">' + timeHtml + '</div>' +
                     '  <div class="event-copy">' +
                     '    <div class="event-meta">' +
-                    '      <span>' + event.cat + '</span>' +
-                    (event.eventInfo.eventType ? '      <span class="dot"></span><span>' + event.eventInfo.eventType + '</span>' : '') +
+                    '      <span>' + escapeHTML(event.cat) + '</span>' +
+                    (event.eventInfo.eventType ? '      <span class="dot"></span><span>' + escapeHTML(event.eventInfo.eventType) + '</span>' : '') +
                     '    </div>' +
-                    '    <span class="event-name">' + event.eventInfo.eventName + '</span>' +
+                    '    <span class="event-name">' + escapeHTML(event.eventInfo.eventName) + '</span>' +
                     '  </div>' +
                     '  <div class="event-availability">' + feedCount + ' Feeds</div>' +
                     '</div>';
@@ -404,30 +422,30 @@
 
         var html = '<div class="preview-content">' +
                    '  <div class="preview-top">' +
-                   '    <span class="preview-category">' + event.cat + '</span>' +
+                   '    <span class="preview-category">' + escapeHTML(event.cat) + '</span>' +
                    (event.eventInfo.isHot ? '    <span class="hot-chip">HOT</span>' : '') +
                    (isLive ? '    <span class="live-chip">LIVE</span>' : '') +
                    '  </div>' +
-                   '  <h2>' + event.eventInfo.eventName + '</h2>' +
-                   '  <p class="preview-competition">' + (event.eventInfo.eventType || "") + '</p>' +
+                   '  <h2>' + escapeHTML(event.eventInfo.eventName) + '</h2>' +
+                   '  <p class="preview-competition">' + escapeHTML(event.eventInfo.eventType || "") + '</p>' +
                    '  <div class="versus">' +
                    '    <div class="team">' +
                    '      <div class="team-flag">' +
-                   (event.eventInfo.teamAFlag ? '        <img src="' + event.eventInfo.teamAFlag + '" alt="">' : (event.eventInfo.teamA ? event.eventInfo.teamA.charAt(0) : "?")) +
+                   (event.eventInfo.teamAFlag ? '        <img src="' + escapeAttr(event.eventInfo.teamAFlag) + '" alt="">' : escapeHTML(event.eventInfo.teamA ? event.eventInfo.teamA.charAt(0) : "?")) +
                    '      </div>' +
-                   '      <span class="team-name">' + (event.eventInfo.teamA || "Team A") + '</span>' +
+                   '      <span class="team-name">' + escapeHTML(event.eventInfo.teamA || "Team A") + '</span>' +
                    '    </div>' +
                    '    <div class="versus-mark">VS</div>' +
                    '    <div class="team">' +
                    '      <div class="team-flag">' +
-                   (event.eventInfo.teamBFlag ? '        <img src="' + event.eventInfo.teamBFlag + '" alt="">' : (event.eventInfo.teamB ? event.eventInfo.teamB.charAt(0) : "?")) +
+                   (event.eventInfo.teamBFlag ? '        <img src="' + escapeAttr(event.eventInfo.teamBFlag) + '" alt="">' : escapeHTML(event.eventInfo.teamB ? event.eventInfo.teamB.charAt(0) : "?")) +
                    '      </div>' +
-                   '      <span class="team-name">' + (event.eventInfo.teamB || "Team B") + '</span>' +
+                   '      <span class="team-name">' + escapeHTML(event.eventInfo.teamB || "Team B") + '</span>' +
                    '    </div>' +
                    '  </div>' +
                    '  <div class="preview-schedule">' +
                    '    <span>Scheduled Start</span>' +
-                   '    <strong>' + formatTime(event.eventInfo.startTime) + '</strong>' +
+                   '    <strong>' + escapeHTML(formatTime(event.eventInfo.startTime)) + '</strong>' +
                    '  </div>' +
                    '  <div class="preview-action">' +
                    '    <span>Press <kbd>OK</kbd> to watch</span>' +
@@ -465,9 +483,8 @@
             var streamRow = target.closest(".stream-row");
             if (streamRow) {
                 var index = parseInt(streamRow.getAttribute("data-stream-index"), 10);
-                if (selectedEvent) {
-                    var allStreams = selectedEvent.formats.concat(selectedEvent.formatsNew);
-                    var streamObj = allStreams[index];
+                if (activeStreams && activeStreams.length > index) {
+                    var streamObj = activeStreams[index];
                     if (streamObj) {
                         playStream(streamObj);
                     }
@@ -560,6 +577,7 @@
         fm.setScope(streamDialog);
 
         apiClient.getStreams(eventObj).then(function (streams) {
+            activeStreams = streams;
             streamLoading.classList.add("is-hidden");
             if (streams.length === 0) {
                 streamError.classList.remove("is-hidden");
@@ -572,8 +590,8 @@
             streams.forEach(function (stream, index) {
                 var kind = SportzXApiUtils.streamKind(stream);
                 html += '<div role="button" class="stream-row focusable" tabindex="-1" data-stream-index="' + index + '">' +
-                        '  <span class="stream-badge">' + kind + '</span>' +
-                        '  <span class="stream-name">' + stream.title + '</span>' +
+                        '  <span class="stream-badge">' + escapeHTML(kind) + '</span>' +
+                        '  <span class="stream-name">' + escapeHTML(stream.title) + '</span>' +
                         '</div>';
             });
             streamList.innerHTML = html;
@@ -598,6 +616,7 @@
         streamDialog.classList.add("is-hidden");
         activeDialog = null;
         selectedEvent = null;
+        activeStreams = [];
         if (lastFocusedMainElement) {
             fm.setScope(document, lastFocusedMainElement);
         } else {
