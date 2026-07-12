@@ -1,0 +1,22 @@
+# SportzX TV Tizen App Git Ignore
+
+# Android APK and extraction artifacts
+*.apk
+SportzX_v2.5.apk
+
+# Androguard analysis databases and logs
+androguard.db
+androguard.db-shm
+androguard.db-wal
+androguard.log
+
+# Tizen build outputs and packages
+dist/
+*.wgt
+.buildResult/
+.project
+
+# Local configuration overrides
+.tizen.path.config
+tizen-analytics.conf
+.DS_Store
