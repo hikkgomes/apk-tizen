@@ -23,7 +23,13 @@ dist/
 author-signature.xml
 signature1.xml
 
-# Local configuration overrides
+# Local configuration
+build/
+*.log
+tv-*.txt
+dlog.txt
+install-log.txt
+
 .tizen.path.config
 tizen-analytics.conf
 .DS_Store

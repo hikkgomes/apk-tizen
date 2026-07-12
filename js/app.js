@@ -517,6 +517,9 @@
                 loadConfigAndGuide();
                 showToast("Refreshing Guide...");
                 break;
+            case "test-stream":
+                playPublicTestStream();
+                break;
             case "settings":
                 openSettingsDialog();
                 break;
@@ -769,6 +772,29 @@
             console.error("[SportzXApp] Failed to resolve stream link", error);
             showPlayerError(error.message || "Failed to resolve stream link.");
         });
+    }
+
+    function playPublicTestStream() {
+        console.log("[SportzXApp] Opening player layer for public test stream");
+        activeDialog = "player";
+        selectedStream = { title: "Public Test Stream" };
+
+        playerLayer.classList.remove("is-hidden");
+        playerLoading.classList.remove("is-hidden");
+        playerError.classList.add("is-hidden");
+        playerLayer.classList.add("controls-visible");
+        
+        playerEvent.textContent = "Samsung HLS Public Sample";
+        playerFeed.textContent = "Test Stream";
+        playPauseButton.textContent = "Ⅱ";
+
+        showToast("Connecting to test stream...");
+        
+        var testUrl = "http://qthttp.apple.com.edgesuite.net/1010qwoeiuryfgmac/sl.m3u8";
+        
+        SportzXPlayer.play(testUrl, { title: "Samsung HLS Public Sample" });
+        fm.setScope(playerLayer, playPauseButton);
+        showPlayerControlsTemporarily();
     }
 
     function showPlayerError(msg) {
