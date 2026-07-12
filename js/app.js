@@ -765,7 +765,12 @@
             }
             showToast("Connecting to live match...");
             var playOpts = apiClient.playbackOptions(resolved);
-            SportzXPlayer.play(resolved.link, playOpts);
+            
+            // Tizen 5.5 TLS Workaround: Downgrade to HTTP to avoid expired root CAs rejecting the connection
+            var finalLink = resolved.link.replace(/^https:/i, "http:");
+            console.log("[SportzXApp] Downgrading stream URL to HTTP: " + finalLink);
+            
+            SportzXPlayer.play(finalLink, playOpts);
             fm.setScope(playerLayer, playPauseButton);
             showPlayerControlsTemporarily();
         }).catch(function (error) {
@@ -790,7 +795,7 @@
 
         showToast("Connecting to test stream...");
         
-        var testUrl = "http://qthttp.apple.com.edgesuite.net/1010qwoeiuryfgmac/sl.m3u8";
+        var testUrl = "http://sample.vodobox.net/skate_phantom_flex_4k/skate_phantom_flex_4k.m3u8";
         
         SportzXPlayer.play(testUrl, { title: "Samsung HLS Public Sample" });
         fm.setScope(playerLayer, playPauseButton);
