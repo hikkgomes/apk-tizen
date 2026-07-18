@@ -134,7 +134,14 @@ loadScript("../js/decoder.js");
 loadScript("../js/remote-config.js");
 loadScript("../js/api-client.js");
 
-test("Live API: Remote Config discovery", async function () {
+test("uses the built-in API fallback on a fresh install", function () {
+    mockLocalStorage.clear();
+    var result = context.SportzXRemoteConfig.configured();
+    assert.equal(result.apiBase, "https://mymodi.top/");
+    assert.equal(result.source, "built-in fallback");
+});
+
+test("Live API: endpoint discovery or fallback", { skip: process.env.SPORTZX_LIVE_TESTS !== "1" }, async function () {
     var RemoteConfig = context.SportzXRemoteConfig;
     var configResult = await RemoteConfig.discover();
     assert.ok(configResult.apiBase, "apiBase should be resolved");
@@ -150,7 +157,7 @@ test("Live API: Network errors, Timeouts and HTTP errors", async function () {
     await assert.rejects(api.get("timeout_error"), (err) => err.code === "TIMEOUT");
 });
 
-test("Live API: Event decoding, Categories, Multiple events, Streams", async function () {
+test("Live API: Event decoding, Categories, Multiple events, Streams", { skip: process.env.SPORTZX_LIVE_TESTS !== "1" }, async function () {
     var RemoteConfig = context.SportzXRemoteConfig;
     var ApiClient = context.SportzXApi;
 
@@ -185,4 +192,3 @@ test("Live API: Event decoding, Categories, Multiple events, Streams", async fun
         }
     }
 });
-

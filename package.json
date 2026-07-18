@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "test:live": "SPORTZX_LIVE_TESTS=1 node --test test/api-client.test.js"
+  },
   "dependencies": {
     "jsdom": "^29.1.1"
   }

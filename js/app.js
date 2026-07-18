@@ -330,6 +330,10 @@
 
     function renderEvents() {
         var filtered = allEvents.filter(function (event) {
+            // Finished fixtures usually point at expired, recycled stream URLs.
+            if (SportzXApiUtils.isEventExpired(event)) {
+                return false;
+            }
             // Category check
             if (activeCategory !== "All" && event.cat !== activeCategory) {
                 return false;
@@ -585,6 +589,9 @@
 
         apiClient.getStreams(eventObj).then(function (streams) {
             console.log("[SportzXApp] Number of streams loaded: " + streams.length);
+            var supportedCount = streams.filter(function (stream) {
+                return SportzXApiUtils.streamSupport(stream).supported;
+            }).length;
             activeStreams = streams;
             streamLoading.classList.add("is-hidden");
             if (streams.length === 0) {
@@ -594,25 +601,30 @@
             }
 
             streamList.classList.remove("is-hidden");
+            streamSubtitle.textContent = eventObj.cat + " • " + supportedCount + " of " + streams.length + " feeds compatible";
             var html = "";
             streams.forEach(function (stream, index) {
                 var kind = SportzXApiUtils.streamKind(stream);
-                html += '<div role="button" class="stream-option focusable" tabindex="-1" data-stream-index="' + index + '">' +
+                var support = SportzXApiUtils.streamSupport(stream);
+                var attributes = support.supported ? ' role="button" class="stream-option focusable" tabindex="-1" data-stream-index="' + index + '"' : ' class="stream-option is-unavailable" aria-disabled="true"';
+                html += '<div' + attributes + '>' +
                         '  <div class="stream-index">' + (index + 1) + '</div>' +
                         '  <div class="stream-copy">' +
                         '    <strong>' + escapeHTML(stream.title) + '</strong>' +
-                        '    <small>' + escapeHTML(stream.type || kind) + '</small>' +
+                        '    <small>' + escapeHTML(support.supported ? "Ready to play" : support.reason) + '</small>' +
                         '  </div>' +
-                        '  <div class="format-tag">' + escapeHTML(kind) + '</div>' +
+                        '  <div class="format-tag">' + escapeHTML(support.supported ? kind : "UNAVAILABLE") + '</div>' +
                         '</div>';
             });
             streamList.innerHTML = html;
 
             // Focus first stream item
             setTimeout(function () {
-                var firstStream = streamList.querySelector(".stream-option");
+                var firstStream = streamList.querySelector(".stream-option.focusable");
                 if (firstStream) {
                     fm.setScope(streamDialog, firstStream);
+                } else {
+                    fm.setScope(streamDialog);
                 }
             }, 50);
 
@@ -726,6 +738,11 @@
     // --- Player Management ---
     function playStream(stream) {
         var kind = stream.type || (window.SportzXApiUtils ? SportzXApiUtils.streamKind(stream) : "");
+        var support = SportzXApiUtils.streamSupport(stream);
+        if (!support.supported) {
+            showToast(support.reason);
+            return;
+        }
         console.log("[SportzXApp] Selected stream type: " + kind);
         
         var streamRow = document.activeElement ? document.activeElement.closest('.stream-option') : null;
@@ -765,12 +782,9 @@
             }
             showToast("Connecting to live match...");
             var playOpts = apiClient.playbackOptions(resolved);
-            
-            // Tizen 5.5 TLS Workaround: Downgrade to HTTP to avoid expired root CAs rejecting the connection
-            var finalLink = resolved.link.replace(/^https:/i, "http:");
-            console.log("[SportzXApp] Downgrading stream URL to HTTP: " + finalLink);
-            
-            SportzXPlayer.play(finalLink, playOpts);
+
+            // Keep the API-provided scheme. HTTPS CDNs commonly reject HTTP downgrades.
+            SportzXPlayer.play(resolved.link, playOpts);
             fm.setScope(playerLayer, playPauseButton);
             showPlayerControlsTemporarily();
         }).catch(function (error) {
@@ -795,7 +809,7 @@
 
         showToast("Connecting to test stream...");
         
-        var testUrl = "http://sample.vodobox.net/skate_phantom_flex_4k/skate_phantom_flex_4k.m3u8";
+        var testUrl = "https://sample.vodobox.net/skate_phantom_flex_4k/skate_phantom_flex_4k.m3u8";
         
         SportzXPlayer.play(testUrl, { title: "Samsung HLS Public Sample" });
         fm.setScope(playerLayer, playPauseButton);

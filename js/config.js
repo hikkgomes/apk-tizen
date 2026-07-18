@@ -5,6 +5,10 @@
         appVersion: "2.5",
         appBuild: "14",
         packageName: "com.sportzx.live",
+        // Last known production endpoint from the Android app. Remote Config is
+        // still preferred when explicitly refreshed from Settings.
+        fallbackApiBase: "https://mymodi.top/",
+        fallbackUserAgent: "Mozilla/5.0 (SmartTV; SmartTV) AppleWebKit/537.42 Tizen/6.5",
         firebase: {
             projectId: "sportzx-7cc3f",
             projectNumber: "446339309956",

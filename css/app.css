@@ -930,6 +930,20 @@ h2 {
     text-align: left;
 }
 
+.stream-option.is-unavailable {
+    opacity: 0.58;
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.stream-option.is-unavailable .stream-index {
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--muted);
+}
+
+.stream-option.is-unavailable .format-tag {
+    color: var(--muted);
+}
+
 .stream-index {
     display: flex;
     width: 44px;

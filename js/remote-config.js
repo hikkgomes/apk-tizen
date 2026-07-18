@@ -238,6 +238,18 @@
         };
     }
 
+    function fallbackResult() {
+        var base = normalizeBase(config.fallbackApiBase);
+        if (!base) {
+            return null;
+        }
+        return {
+            apiBase: base,
+            userAgent: String(config.fallbackUserAgent || ""),
+            source: "built-in fallback"
+        };
+    }
+
     function configured() {
         var override = normalizeBase(safeGet(config.storage.apiBase));
         var entries;
@@ -252,7 +264,7 @@
         if (entries && entries.api_url) {
             return resultFromEntries(entries, "cache");
         }
-        return null;
+        return fallbackResult();
     }
 
     function discover() {
@@ -262,6 +274,9 @@
             var cached = parseJson(safeGet(config.storage.remoteEntries), null);
             if (cached && cached.api_url) {
                 return resultFromEntries(cached, "cache");
+            }
+            if (fallbackResult()) {
+                return fallbackResult();
             }
             throw error;
         });

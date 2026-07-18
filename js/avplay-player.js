@@ -8,6 +8,38 @@
     var callbacks = {};
     var isPrepared = false;
     var isBufferComplete = true;
+    var prepareTimer = null;
+    var errorReported = false;
+
+    function clearPrepareTimer() {
+        if (prepareTimer !== null) {
+            clearTimeout(prepareTimer);
+            prepareTimer = null;
+        }
+    }
+
+    function playerErrorMessage(code) {
+        var messages = {
+            PLAYER_ERROR_CONNECTION_FAILED: "The stream server could not be reached.",
+            PLAYER_ERROR_INVALID_URI: "The stream address is invalid.",
+            PLAYER_ERROR_NO_SUCH_FILE: "The stream is no longer available.",
+            PLAYER_ERROR_NOT_SUPPORTED_FILE: "This stream format or codec is not supported by the TV.",
+            PLAYER_ERROR_INVALID_PARAMETER: "The stream supplied an invalid player parameter.",
+            PLAYER_ERROR_INVALID_OPERATION: "The TV player rejected this playback operation.",
+            PLAYER_ERROR_INVALID_STATE: "The TV player entered an invalid state.",
+            PLAYER_ERROR_SEEK_FAILED: "The TV could not seek in this stream.",
+            PLAYER_ERROR_GENEREIC: "The TV player reported an internal error."
+        };
+        return messages[code] || "The TV could not play this feed (" + code + ").";
+    }
+
+    function reportError(message) {
+        clearPrepareTimer();
+        if (!errorReported && callbacks.onError) {
+            errorReported = true;
+            callbacks.onError(message);
+        }
+    }
 
     function sanitizeUrl(url) {
         if (!url) return "null";
@@ -106,6 +138,8 @@
     function play(url, options) {
         currentUrl = url;
         isPrepared = false;
+        errorReported = false;
+        clearPrepareTimer();
         options = options || {};
 
         var sanitizedUrl = sanitizeUrl(url);
@@ -154,9 +188,7 @@
 
         if (classificationResult === "CUSTOM_HEADERS_REQUIRED_UNSUPPORTED") {
             log("Architectural Limitation: Tizen AVPlay does not natively support custom headers like Referer/Origin.");
-            if (callbacks.onError) {
-                callbacks.onError("This stream requires unsupported custom headers (Referer/Origin).");
-            }
+            reportError("This stream requires request headers that Samsung AVPlay cannot send.");
             return;
         }
 
@@ -223,12 +255,13 @@
                         var state = "UNKNOWN";
                         try { state = root.webapis.avplay.getState(); } catch (e) {}
                         log("Callback: onerror (" + eventType + ") in state: " + state);
-                        if (callbacks.onError) callbacks.onError("AVPlay error (" + eventType + ")");
+                        reportError(playerErrorMessage(eventType));
                     },
                     onerrormsg: function (errorCode, errorMsg) {
                         var state = "UNKNOWN";
                         try { state = root.webapis.avplay.getState(); } catch (e) {}
                         log("Callback: onerrormsg - Code: " + errorCode + ", Msg: " + errorMsg + ", State: " + state);
+                        reportError(playerErrorMessage(errorCode));
                     },
                     onevent: function (eventType, eventData) {
                         if (eventType === "PLAYER_MSG_HTTP_ERROR_CODE" ||
@@ -240,6 +273,11 @@
                         } else {
                             log("Callback: onevent - " + eventType);
                         }
+                        if (eventType === "PLAYER_MSG_HTTP_ERROR_CODE" || eventType === "PLAYER_MSG_HTTP_ERROR") {
+                            reportError("The stream server returned HTTP " + eventData + ". The link may have expired.");
+                        } else if (eventType === "PLAYER_MSG_RESOURCE_ERROR") {
+                            reportError("The TV could not load a required stream resource.");
+                        }
                     },
                     ondrmevent: function(drmEvent, drmData) {
                         log("Callback: ondrmevent - Event: " + drmEvent);
@@ -249,12 +287,22 @@
                 log("Setting AVPlay listener");
                 root.webapis.avplay.setListener(avplayListener);
 
+                // Fail safely if prepareAsync never invokes either callback.
+                prepareTimer = setTimeout(function() {
+                    if (!isPrepared) {
+                        log("prepareAsync timeout reached (15000ms)");
+                        reportError("Player initialization timed out. The stream server may be offline.");
+                        try { stop(); } catch(e) {}
+                    }
+                }, 15000);
+
                 log("Calling prepareAsync()");
                 root.webapis.avplay.prepareAsync(function () {
                     var finalState = "UNKNOWN";
                     try { finalState = root.webapis.avplay.getState(); } catch(e) {}
                     log("prepareAsync success callback. State: " + finalState);
                     isPrepared = true;
+                    clearPrepareTimer();
                     
                     if (finalState === "READY" || finalState === "PAUSED") {
                         log("Calling play()");
@@ -263,7 +311,7 @@
                             log("play() completed successfully");
                         } catch (playError) {
                             log("play() threw exception: " + playError.message);
-                            if (callbacks.onError) callbacks.onError("Failed to play: " + playError.message);
+                            reportError("The TV failed to start playback: " + playError.message);
                         }
                     } else {
                         log("Unexpected state after prepare, not calling play().");
@@ -271,25 +319,12 @@
                 }, function (prepareError) {
                     var msg = prepareError ? (prepareError.name + " (" + prepareError.message + ")") : "Unknown Error";
                     log("prepareAsync error callback: " + msg);
-                    if (callbacks.onError) {
-                        callbacks.onError("prepareAsync failed: " + msg);
-                    }
+                    reportError("The TV could not prepare this stream: " + msg);
                 });
-
-                // Fail-safe timeout if prepareAsync hangs indefinitely
-                setTimeout(function() {
-                    if (!isPrepared) {
-                        log("prepareAsync timeout reached (15000ms)");
-                        if (callbacks.onError) callbacks.onError("Player initialization timed out.");
-                        try { stop(); } catch(e) {}
-                    }
-                }, 15000);
 
             } catch (error) {
                 log("AVPlay setup exception: " + error.message);
-                if (callbacks.onError) {
-                    callbacks.onError(error.message);
-                }
+                reportError("The TV player could not open this stream: " + error.message);
             }
         } else {
             // HTML5 Playback
@@ -318,6 +353,7 @@
 
     function stop() {
         log("Stop requested");
+        clearPrepareTimer();
         if (isTizen) {
             try {
                 var state = root.webapis.avplay.getState();

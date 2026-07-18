@@ -6,7 +6,7 @@ SportzX TV is a premium, stadium-like live sports event guide and playback appli
 
 ## 🚀 Features
 
-- **Automated API Discovery**: Resolves production SportzX API endpoints dynamically via Firebase Remote Config.
+- **API Endpoint Resilience**: Uses cached or manually configured endpoints, a built-in production fallback, and optional Firebase Remote Config refresh.
 - **Envelope Decryption**: Decrypts secure API payloads in real-time.
 - **TV-Optimised Navigation**: Implements fully spatial 5-way D-pad remote navigation with focus tracking and back-button behavior.
 - **Advanced Playback**: Integrated Samsung AVPlay supporting custom Cookies and User-Agent headers, with fallback to standard HTML5 `<video>` for browser development.
@@ -44,7 +44,13 @@ sportszx/
 
 ## 🛠️ Testing
 
-The application includes two test suites run directly via Node.js's built-in test runner:
+Run the complete local suite with:
+
+```bash
+npm test
+```
+
+The local suite covers envelope decoding, APK stream-link parsing, Samsung feed compatibility, player error handling, and mocked AVPlay setup without requiring network access.
 
 ### 1. Static Decoder Tests
 Tests Base64 URL decoding, envelope parsing, key derivation, and AES decryption using a mock vector:
@@ -52,10 +58,12 @@ Tests Base64 URL decoding, envelope parsing, key derivation, and AES decryption 
 node test/decoder.test.js
 ```
 
-### 2. Live API Integration Tests
-Runs end-to-end integration tests by hitting the live Firebase Remote Config, discovering the active API base, retrieving the live fixtures list, decrypting the response, querying streams for a live match, and resolving streaming links:
+### Live API Integration Tests
+
+The optional live checks verify endpoint discovery/fallback, retrieve and decrypt the current guide, query feeds, and exercise stream resolution:
+
 ```bash
-node test/api-client.test.js
+npm run test:live
 ```
 
 ---

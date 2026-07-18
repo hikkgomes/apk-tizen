@@ -178,15 +178,67 @@
         };
     }
 
+    function decodeHeaderPart(value) {
+        var input = String(value == null ? "" : value).replace(/\+/g, " ");
+        try {
+            return decodeURIComponent(input);
+        } catch (error) {
+            return input;
+        }
+    }
+
+    function setHeader(headers, name, value) {
+        var lower = String(name).toLowerCase();
+        Object.keys(headers).forEach(function (existing) {
+            if (existing.toLowerCase() === lower) {
+                delete headers[existing];
+            }
+        });
+        headers[name] = value;
+    }
+
+    // The Android app accepts ExoPlayer-style URLs such as:
+    // https://host/live.m3u8|Referer=https%3A%2F%2Fsite%2F&User-Agent=...
+    function parseStreamLink(value, suppliedHeaders) {
+        var input = trim(value);
+        var pipeIndex = input.indexOf("|");
+        var headers = {};
+        var suffix = "";
+
+        Object.keys(suppliedHeaders || {}).forEach(function (name) {
+            setHeader(headers, name, String(suppliedHeaders[name]));
+        });
+
+        if (pipeIndex !== -1) {
+            suffix = input.slice(pipeIndex + 1);
+            input = input.slice(0, pipeIndex);
+            suffix.split("&").forEach(function (pair) {
+                var equalsIndex = pair.indexOf("=");
+                var name;
+                if (equalsIndex <= 0) {
+                    return;
+                }
+                name = trim(decodeHeaderPart(pair.slice(0, equalsIndex)));
+                if (name) {
+                    setHeader(headers, name, decodeHeaderPart(pair.slice(equalsIndex + 1)));
+                }
+            });
+        }
+
+        return { link: trim(input), headers: headers };
+    }
+
     function normalizeStream(value, index) {
+        var parsed;
         value = value || {};
+        parsed = parseStreamLink(value.link, value.headers && typeof value.headers === "object" ? value.headers : {});
         return {
             title: asString(value.title, "Feed " + (index + 1)),
-            link: asString(value.link),
+            link: parsed.link,
             type: Number(value.type) || 0,
             api: asString(value.api),
             drmType: value.drmType == null ? null : String(value.drmType),
-            headers: value.headers && typeof value.headers === "object" ? value.headers : {},
+            headers: parsed.headers,
             index: index,
             raw: value
         };
@@ -216,8 +268,15 @@
         return isNaN(parsed.getTime()) ? null : parsed;
     }
 
+    function isEventExpired(event, now) {
+        var info = event && event.eventInfo || {};
+        var end = parseEventTime(info.endTime);
+        var current = now instanceof Date ? now : new Date();
+        return Boolean(end && current.getTime() > end.getTime());
+    }
+
     function finalPathSegment(url) {
-        var clean = String(url || "").split("?")[0].replace(/\/+$/, "");
+        var clean = parseStreamLink(url).link.split("?")[0].replace(/\/+$/, "");
         var pieces = clean.split("/");
         return pieces[pieces.length - 1] || "";
     }
@@ -235,7 +294,7 @@
     }
 
     function streamKind(stream) {
-        var url = String(stream.link || "").toLowerCase().split("?")[0];
+        var url = parseStreamLink(stream.link).link.toLowerCase().split("?")[0];
         if (/\.mpd$/.test(url)) {
             return "DASH";
         }
@@ -246,6 +305,72 @@
             return String(stream.drmType).toUpperCase();
         }
         return "LIVE";
+    }
+
+    function streamSupport(stream) {
+        var type = Number(stream && stream.type) || 0;
+        var parsed = parseStreamLink(stream && stream.link, stream && stream.headers);
+        var unsupportedHeaders = [];
+        var drmType = trim(stream && stream.drmType).toLowerCase();
+
+        if (type === 2) {
+            return {
+                supported: false,
+                code: "ANDROID_WEBVIEW_REQUIRED",
+                reason: "Requires Android WebView capture"
+            };
+        }
+
+        if (type === 1) {
+            return {
+                supported: false,
+                code: drmType === "widevine" || drmType === "playready" ? "DRM_NOT_IMPLEMENTED" : "CLEARKEY_UNSUPPORTED",
+                reason: drmType === "widevine" || drmType === "playready" ? "DRM feed is not supported by this port" : "ClearKey DASH needs a newer Samsung TV"
+            };
+        }
+
+        if (!isHttpUrl(parsed.link)) {
+            return {
+                supported: false,
+                code: "INVALID_STREAM_URL",
+                reason: "Invalid stream address"
+            };
+        }
+
+        Object.keys(parsed.headers).forEach(function (name) {
+            var lower = name.toLowerCase();
+            if (lower !== "user-agent" && lower !== "cookie") {
+                unsupportedHeaders.push(name);
+            }
+        });
+
+        if (unsupportedHeaders.length) {
+            return {
+                supported: false,
+                code: "CUSTOM_HEADERS_UNSUPPORTED",
+                reason: "Needs unsupported header: " + unsupportedHeaders.join(", ")
+            };
+        }
+
+        return { supported: true, code: "SUPPORTED", reason: "Compatible with Samsung AVPlay" };
+    }
+
+    function normalizeResolvedStream(stream) {
+        var parsed = parseStreamLink(stream.link, stream.headers);
+        stream.link = parsed.link;
+        stream.headers = parsed.headers;
+        return stream;
+    }
+
+    function unsupportedStreamError(stream) {
+        var support = streamSupport(stream);
+        var error;
+        if (support.supported) {
+            return null;
+        }
+        error = new Error(support.reason + ".");
+        error.code = support.code;
+        return error;
     }
 
     function SportzXApi(options) {
@@ -323,13 +448,12 @@
             headers: stream.headers || {},
             index: stream.index
         };
+        var supportError;
 
-        if (type === 2) {
-            return Promise.reject((function () {
-                var error = new Error("This feed depends on Android WebView request interception, which is unavailable in a standalone TV app.");
-                error.code = "ANDROID_WEBVIEW_REQUIRED";
-                return error;
-            }()));
+        normalizeResolvedStream(resolved);
+        supportError = unsupportedStreamError(resolved);
+        if (supportError) {
+            return Promise.reject(supportError);
         }
 
         if (type === 4) {
@@ -342,6 +466,11 @@
                     throw new Error("The playback resolver did not return playback_url");
                 }
                 resolved.link = String(payload.playback_url);
+                normalizeResolvedStream(resolved);
+                supportError = unsupportedStreamError(resolved);
+                if (supportError) {
+                    throw supportError;
+                }
                 return resolved;
             }).catch(function (err) {
                 throw new Error("Type 4 stream resolution failed: " + err.message);
@@ -355,6 +484,11 @@
                     throw new Error("No HLS manifest was found in the feed page");
                 }
                 resolved.link = decodeEscapedUrl(match[1]);
+                normalizeResolvedStream(resolved);
+                supportError = unsupportedStreamError(resolved);
+                if (supportError) {
+                    throw supportError;
+                }
                 return resolved;
             }).catch(function (err) {
                 throw new Error("Type 6 stream extraction failed: " + err.message);
@@ -366,7 +500,14 @@
 
     SportzXApi.prototype.playbackOptions = function (stream) {
         var headers = stream.headers || {};
-        var result = { userAgent: this.userAgent, cookie: "", customHeaders: {} };
+        var result = {
+            title: stream.title || "",
+            streamType: Number(stream.type) || 0,
+            drmType: stream.drmType || "",
+            userAgent: this.userAgent,
+            cookie: "",
+            customHeaders: {}
+        };
         Object.keys(headers).forEach(function (name) {
             var lower = name.toLowerCase();
             if (lower === "user-agent") {
@@ -386,8 +527,11 @@
         joinUrl: joinUrl,
         normalizeEvent: normalizeEvent,
         normalizeStream: normalizeStream,
+        isEventExpired: isEventExpired,
+        parseStreamLink: parseStreamLink,
         parseEventTime: parseEventTime,
         streamKind: streamKind,
+        streamSupport: streamSupport,
         xhrText: xhrText
     };
 }(this));
