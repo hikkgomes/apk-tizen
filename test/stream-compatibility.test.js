@@ -97,3 +97,52 @@ test("identifies explicitly ended fixtures as expired", function () {
     assert.equal(context.SportzXApiUtils.isEventExpired(event, new Date("2026-07-17T13:00:00Z")), false);
     assert.equal(context.SportzXApiUtils.isEventExpired(event, new Date("2026-07-17T15:00:00Z")), true);
 });
+
+test("keeps expired API fixtures visible in All", function () {
+    var context = loadApi();
+    var now = new Date("2026-07-19T12:00:00Z");
+    var event = context.SportzXApiUtils.normalizeEvent({
+        cat: "Football",
+        eventInfo: {
+            startTime: "2026/07/17 12:00:00 +0000",
+            endTime: "2026/07/17 14:00:00 +0000"
+        }
+    }, 0);
+    var result = context.SportzXApiUtils.filterGuideEvents([event], "All", "All", now);
+
+    assert.equal(result.events.length, 1);
+    assert.equal(result.scheduleFallback, false);
+});
+
+test("falls back to populated feeds when an entire sport schedule is stale", function () {
+    var context = loadApi();
+    var now = new Date("2026-07-19T12:00:00Z");
+    var football = context.SportzXApiUtils.normalizeEvent({
+        cat: "Football",
+        eventInfo: {
+            startTime: "2026/07/17 12:00:00 +0000",
+            endTime: "2026/07/17 14:00:00 +0000"
+        }
+    }, 0);
+    var result = context.SportzXApiUtils.filterGuideEvents([football], "Football", "Live", now);
+
+    assert.equal(result.events.length, 1);
+    assert.equal(result.events[0].cat, "Football");
+    assert.equal(result.scheduleFallback, true);
+});
+
+test("does not label ordinary empty status filters as stale fallbacks", function () {
+    var context = loadApi();
+    var now = new Date("2026-07-19T12:00:00Z");
+    var upcoming = context.SportzXApiUtils.normalizeEvent({
+        cat: "Football",
+        eventInfo: {
+            startTime: "2026/07/20 12:00:00 +0000",
+            endTime: "2026/07/20 14:00:00 +0000"
+        }
+    }, 0);
+    var result = context.SportzXApiUtils.filterGuideEvents([upcoming], "Football", "Live", now);
+
+    assert.equal(result.events.length, 0);
+    assert.equal(result.scheduleFallback, false);
+});

@@ -295,62 +295,15 @@
     }
 
     function isEventLive(event) {
-        if (event.eventInfo.eventType && event.eventInfo.eventType.toLowerCase().indexOf("live") !== -1) {
-            return true;
-        }
-        var start = SportzXApiUtils.parseEventTime(event.eventInfo.startTime);
-        var end = SportzXApiUtils.parseEventTime(event.eventInfo.endTime);
-        var now = new Date();
-
-        if (start) {
-            if (!end) {
-                // Fallback: assume live for 2 hours if start has passed
-                return now >= start && now.getTime() <= (start.getTime() + 2 * 60 * 60 * 1000);
-            }
-            return now >= start && now <= end;
-        }
-        return false;
-    }
-
-    function isEventToday(event) {
-        var start = SportzXApiUtils.parseEventTime(event.eventInfo.startTime);
-        if (!start) return false;
-        var today = new Date();
-        return start.getFullYear() === today.getFullYear() &&
-               start.getMonth() === today.getMonth() &&
-               start.getDate() === today.getDate();
-    }
-
-    function isEventUpcoming(event) {
-        var start = SportzXApiUtils.parseEventTime(event.eventInfo.startTime);
-        if (!start) return false;
-        var now = new Date();
-        return start > now;
+        return SportzXApiUtils.isEventLive(event);
     }
 
     function renderEvents() {
-        var filtered = allEvents.filter(function (event) {
-            // Finished fixtures usually point at expired, recycled stream URLs.
-            if (SportzXApiUtils.isEventExpired(event)) {
-                return false;
-            }
-            // Category check
-            if (activeCategory !== "All" && event.cat !== activeCategory) {
-                return false;
-            }
-            // Status check
-            if (activeStatus === "Live") {
-                return isEventLive(event);
-            } else if (activeStatus === "Today") {
-                return isEventToday(event) || isEventLive(event);
-            } else if (activeStatus === "Upcoming") {
-                return isEventUpcoming(event) && !isEventLive(event);
-            }
-            return true;
-        });
+        var selection = SportzXApiUtils.filterGuideEvents(allEvents, activeCategory, activeStatus);
+        var filtered = selection.events;
 
         if (eventCount) {
-            eventCount.textContent = filtered.length + " fixtures";
+            eventCount.textContent = filtered.length + " fixtures" + (selection.scheduleFallback ? " • schedule may be stale" : "");
         }
 
         if (filtered.length === 0) {
@@ -497,19 +450,21 @@
             }
 
             // Handle filter rail clicks
-            var filterCat = target.getAttribute("data-filter-cat");
-            if (filterCat) {
-                activeCategory = filterCat;
-                renderCategoryRail();
+            var filterCatChip = target.closest("[data-filter-cat]");
+            if (filterCatChip) {
+                activeCategory = filterCatChip.getAttribute("data-filter-cat");
+                SportzXNavigation.selectFilterChip(categoryRail, "data-filter-cat", activeCategory);
                 renderEvents();
+                fm.refresh(filterCatChip);
                 return;
             }
 
-            var filterStatus = target.getAttribute("data-filter-status");
-            if (filterStatus) {
-                activeStatus = filterStatus;
-                renderStatusRail();
+            var filterStatusChip = target.closest("[data-filter-status]");
+            if (filterStatusChip) {
+                activeStatus = filterStatusChip.getAttribute("data-filter-status");
+                SportzXNavigation.selectFilterChip(statusRail, "data-filter-status", activeStatus);
                 renderEvents();
+                fm.refresh(filterStatusChip);
                 return;
             }
         });

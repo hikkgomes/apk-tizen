@@ -275,6 +275,72 @@
         return Boolean(end && current.getTime() > end.getTime());
     }
 
+    function isEventLive(event, now) {
+        var info = event && event.eventInfo || {};
+        var current = now instanceof Date ? now : new Date();
+        var start;
+        var end;
+        if (info.eventType && String(info.eventType).toLowerCase().indexOf("live") !== -1) {
+            return true;
+        }
+        start = parseEventTime(info.startTime);
+        end = parseEventTime(info.endTime);
+        if (!start) {
+            return false;
+        }
+        if (!end) {
+            return current >= start && current.getTime() <= start.getTime() + 2 * 60 * 60 * 1000;
+        }
+        return current >= start && current <= end;
+    }
+
+    function isEventToday(event, now) {
+        var start = parseEventTime(event && event.eventInfo && event.eventInfo.startTime);
+        var current = now instanceof Date ? now : new Date();
+        return Boolean(start && start.getFullYear() === current.getFullYear() &&
+            start.getMonth() === current.getMonth() && start.getDate() === current.getDate());
+    }
+
+    function isEventUpcoming(event, now) {
+        var start = parseEventTime(event && event.eventInfo && event.eventInfo.startTime);
+        var current = now instanceof Date ? now : new Date();
+        return Boolean(start && start > current);
+    }
+
+    function filterGuideEvents(events, category, status, now) {
+        var current = now instanceof Date ? now : new Date();
+        var categoryEvents = asArray(events).filter(function (event) {
+            return category === "All" || event.cat === category;
+        });
+        var filtered;
+        var allSchedulesExpired;
+
+        if (status === "Live") {
+            filtered = categoryEvents.filter(function (event) { return isEventLive(event, current); });
+        } else if (status === "Today") {
+            filtered = categoryEvents.filter(function (event) {
+                return isEventToday(event, current) || isEventLive(event, current);
+            });
+        } else if (status === "Upcoming") {
+            filtered = categoryEvents.filter(function (event) {
+                return isEventUpcoming(event, current) && !isEventLive(event, current);
+            });
+        } else {
+            filtered = categoryEvents.slice();
+        }
+
+        allSchedulesExpired = categoryEvents.length > 0 && categoryEvents.every(function (event) {
+            return isEventExpired(event, current);
+        });
+
+        // The production guide occasionally serves an entirely stale schedule while
+        // its channel endpoints remain populated. Keep those feeds reachable.
+        if (status !== "All" && filtered.length === 0 && allSchedulesExpired) {
+            return { events: categoryEvents, scheduleFallback: true };
+        }
+        return { events: filtered, scheduleFallback: false };
+    }
+
     function finalPathSegment(url) {
         var clean = parseStreamLink(url).link.split("?")[0].replace(/\/+$/, "");
         var pieces = clean.split("/");
@@ -527,7 +593,11 @@
         joinUrl: joinUrl,
         normalizeEvent: normalizeEvent,
         normalizeStream: normalizeStream,
+        filterGuideEvents: filterGuideEvents,
         isEventExpired: isEventExpired,
+        isEventLive: isEventLive,
+        isEventToday: isEventToday,
+        isEventUpcoming: isEventUpcoming,
         parseStreamLink: parseStreamLink,
         parseEventTime: parseEventTime,
         streamKind: streamKind,

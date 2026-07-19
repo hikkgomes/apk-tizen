@@ -262,6 +262,22 @@
         return supported;
     }
 
+    function selectFilterChip(rail, attribute, value) {
+        var selected = null;
+        if (!rail) {
+            return selected;
+        }
+        Array.prototype.slice.call(rail.querySelectorAll(".filter-chip")).forEach(function (chip) {
+            if (chip.getAttribute(attribute) === value) {
+                chip.classList.add("is-active");
+                selected = chip;
+            } else {
+                chip.classList.remove("is-active");
+            }
+        });
+        return selected;
+    }
+
     function own(object, key) {
         return Object.prototype.hasOwnProperty.call(object, key);
     }
@@ -269,6 +285,7 @@
     root.SportzXNavigation = {
         FocusManager: FocusManager,
         KEY: KEY,
-        registerRemoteKeys: registerRemoteKeys
+        registerRemoteKeys: registerRemoteKeys,
+        selectFilterChip: selectFilterChip
     };
 }(this));
