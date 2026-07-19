@@ -9,6 +9,7 @@ var vm = require("node:vm");
 var decoder = require("../js/decoder.js");
 
 var VECTOR = "3q2-7wZ1MCLV9YNJ0uDf2LSDrnLkU3g3UTlr";
+var GEESPORTS_VECTOR = "RklGU2Z5ZkcydlpJTEhRNFpMU2p5K3ppSXJmZFMzY29FcUtLZ3BCV29RMUdmSzJCMSt6QW94Z2tUUzRkNFdKKw==";
 
 function encodeBase64Url(bytes) {
     return Buffer.from(bytes).toString("base64")
@@ -31,6 +32,13 @@ test("parses the envelope framing and derives the expected key material", functi
 
 test("decodes the known response vector", async function () {
     assert.equal(await decoder.decodeEnvelope(VECTOR), "Hello World");
+});
+
+test("decodes the GeeSports native response format", async function () {
+    assert.equal(
+        await decoder.decodeGeeSportsPayload(GEESPORTS_VECTOR),
+        '[{"event":"{\\"visible\\":true}"}]'
+    );
 });
 
 test("rejects invalid Base64 and malformed envelope framing", async function (t) {
@@ -95,5 +103,7 @@ test("loads as a browser global without CommonJS or runtime dependencies", async
     vm.runInContext(source, context, { filename: "decoder.js" });
 
     assert.equal(typeof context.SportzXDecoder.decodeEnvelope, "function");
+    assert.equal(typeof context.SportzXDecoder.decodeGeeSportsPayload, "function");
     assert.equal(await context.SportzXDecoder.decodeEnvelope(VECTOR), "Hello World");
+    assert.equal(await context.SportzXDecoder.decodeGeeSportsPayload(GEESPORTS_VECTOR), '[{"event":"{\\"visible\\":true}"}]');
 });

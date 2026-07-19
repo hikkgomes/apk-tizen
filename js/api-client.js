@@ -99,8 +99,18 @@
     }
 
     function decodeResponse(text) {
-        var parsed = parseJson(text, "API response");
+        var parsed;
         var encoded;
+        try {
+            parsed = JSON.parse(text);
+        } catch (jsonError) {
+            if (!root.SportzXDecoder || !root.SportzXDecoder.decodeGeeSportsPayload) {
+                return Promise.reject(new Error("The GeeSports response decoder did not load"));
+            }
+            return root.SportzXDecoder.decodeGeeSportsPayload(text).then(function (decoded) {
+                return parseJson(decoded, "Decoded GeeSports response");
+            });
+        }
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || typeof parsed.data !== "string") {
             return Promise.resolve(parsed);
         }
@@ -142,9 +152,48 @@
     }
 
     function normalizeEvent(value, index) {
+        var geeValue;
         var info = value && value.eventInfo || {};
         var formats = asArray(value && value.formats);
         var formatsNew = asArray(value && value.formatsNew);
+
+        if (value && typeof value.event === "string") {
+            try {
+                geeValue = JSON.parse(value.event);
+            } catch (error) {
+                geeValue = null;
+            }
+        } else if (value && value.eventName && value.links) {
+            geeValue = value;
+        }
+
+        if (geeValue) {
+            formats = asArray(geeValue.link_names);
+            return {
+                id: asString(geeValue.links, "event-" + index),
+                cat: asString(geeValue.category, "Other"),
+                catImage: "",
+                adsLimit: 0,
+                formats: formats.map(normalizeFormat),
+                formatsNew: [],
+                eventInfo: {
+                    teamA: asString(geeValue.teamAName),
+                    teamB: asString(geeValue.teamBName),
+                    teamAFlag: asString(geeValue.teamAFlag),
+                    teamBFlag: asString(geeValue.teamBFlag),
+                    eventName: asString(geeValue.eventName, asString(geeValue.teamAName) + " vs " + asString(geeValue.teamBName)),
+                    eventType: asString(geeValue.category),
+                    eventBanner: asString(geeValue.eventLogo),
+                    isHot: Number(geeValue.priority) > 0,
+                    startTime: trim(asString(geeValue.date) + " " + asString(geeValue.time)),
+                    endTime: trim(asString(geeValue.end_date) + " " + asString(geeValue.end_time))
+                },
+                visible: geeValue.visible !== false,
+                priority: Number(geeValue.priority) || 0,
+                streamPath: asString(geeValue.links),
+                raw: geeValue
+            };
+        }
         return {
             id: asString(value && value.id, String(index)),
             cat: asString(value && value.cat, "Other"),
@@ -225,19 +274,23 @@
             });
         }
 
-        return { link: trim(input), headers: headers };
+        return { link: trim(input).replace(/\?$/, ""), headers: headers };
     }
 
     function normalizeStream(value, index) {
         var parsed;
+        var clearKey;
         value = value || {};
         parsed = parseStreamLink(value.link, value.headers && typeof value.headers === "object" ? value.headers : {});
+        clearKey = /^[0-9a-f]{32}:[0-9a-f]{32}$/i.test(trim(value.api)) ? trim(value.api) : "";
         return {
-            title: asString(value.title, "Feed " + (index + 1)),
+            title: asString(value.title, asString(value.name, "Feed " + (index + 1))),
             link: parsed.link,
-            type: Number(value.type) || 0,
+            type: clearKey ? 1 : (Number(value.type) || 0),
             api: asString(value.api),
-            drmType: value.drmType == null ? null : String(value.drmType),
+            drmType: clearKey ? "clearkey" : (value.drmType == null ? null : String(value.drmType)),
+            clearKey: clearKey,
+            scheme: Number(value.scheme) || 0,
             headers: parsed.headers,
             index: index,
             raw: value
@@ -246,6 +299,7 @@
 
     function parseEventTime(value) {
         var match = /^(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\s+([+-])(\d{2})(\d{2})$/.exec(trim(value));
+        var localMatch;
         var offset;
         var utc;
         var parsed;
@@ -264,6 +318,18 @@
             ) - offset * 60000;
             return new Date(utc);
         }
+        localMatch = /^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/.exec(trim(value));
+        if (localMatch) {
+            parsed = new Date(
+                Number(localMatch[3]),
+                Number(localMatch[2]) - 1,
+                Number(localMatch[1]),
+                Number(localMatch[4] || 0),
+                Number(localMatch[5] || 0),
+                Number(localMatch[6] || 0)
+            );
+            return isNaN(parsed.getTime()) ? null : parsed;
+        }
         parsed = new Date(value);
         return isNaN(parsed.getTime()) ? null : parsed;
     }
@@ -271,7 +337,11 @@
     function isEventExpired(event, now) {
         var info = event && event.eventInfo || {};
         var end = parseEventTime(info.endTime);
+        var start = parseEventTime(info.startTime);
         var current = now instanceof Date ? now : new Date();
+        if (!end && start) {
+            end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
+        }
         return Boolean(end && current.getTime() > end.getTime());
     }
 
@@ -289,7 +359,7 @@
             return false;
         }
         if (!end) {
-            return current >= start && current.getTime() <= start.getTime() + 2 * 60 * 60 * 1000;
+            return current >= start && current.getTime() <= start.getTime() + 4 * 60 * 60 * 1000;
         }
         return current >= start && current <= end;
     }
@@ -313,7 +383,6 @@
             return category === "All" || event.cat === category;
         });
         var filtered;
-        var allSchedulesExpired;
 
         if (status === "Live") {
             filtered = categoryEvents.filter(function (event) { return isEventLive(event, current); });
@@ -329,11 +398,7 @@
             filtered = categoryEvents.slice();
         }
 
-        allSchedulesExpired = categoryEvents.length > 0 && categoryEvents.every(function (event) {
-            return isEventExpired(event, current);
-        });
-
-        return { events: filtered, scheduleStale: allSchedulesExpired };
+        return { events: filtered, scheduleStale: false };
     }
 
     function finalPathSegment(url) {
@@ -386,7 +451,7 @@
             return {
                 supported: false,
                 code: drmType === "widevine" || drmType === "playready" ? "DRM_NOT_IMPLEMENTED" : "CLEARKEY_UNSUPPORTED",
-                reason: drmType === "widevine" || drmType === "playready" ? "DRM feed is not supported by this port" : "ClearKey DASH needs a newer Samsung TV"
+                reason: drmType === "widevine" || drmType === "playready" ? "DRM feed is not supported by this port" : "ClearKey DASH is not supported by Samsung AVPlay"
             };
         }
 
@@ -446,16 +511,25 @@
     };
 
     SportzXApi.prototype.getEvents = function () {
-        return this.get("events.json").then(function (payload) {
+        return this.get("events.txt").then(function (payload) {
             if (!Array.isArray(payload)) {
-                throw new Error("events.json did not contain an event list");
+                throw new Error("events.txt did not contain an event list");
             }
-            return payload.map(normalizeEvent);
+            return payload.map(normalizeEvent).filter(function (event) {
+                return event.visible !== false && Boolean(event.streamPath || event.id);
+            }).sort(function (left, right) {
+                var leftTime = parseEventTime(left.eventInfo.startTime);
+                var rightTime = parseEventTime(right.eventInfo.startTime);
+                if (left.priority !== right.priority) {
+                    return right.priority - left.priority;
+                }
+                return (leftTime ? leftTime.getTime() : Infinity) - (rightTime ? rightTime.getTime() : Infinity);
+            });
         });
     };
 
     SportzXApi.prototype.getEventCategories = function () {
-        return this.get("eventCats.json").then(function (payload) {
+        return this.get("event_cats.txt").then(function (payload) {
             if (!Array.isArray(payload)) {
                 return [];
             }
@@ -465,18 +539,23 @@
 
     SportzXApi.prototype.getGuide = function () {
         var self = this;
-        return Promise.all([
-            self.getEvents(),
-            self.getEventCategories().catch(function () { return []; })
-        ]).then(function (parts) {
-            return { events: parts[0], categories: parts[1] };
+        return self.getEvents().then(function (events) {
+            var seen = {};
+            var categories = [];
+            events.forEach(function (event) {
+                if (!seen[event.cat]) {
+                    seen[event.cat] = true;
+                    categories.push({ id: event.cat, title: event.cat, image: event.catImage || "", selected: false, link: "" });
+                }
+            });
+            return { events: events, categories: categories };
         });
     };
 
     SportzXApi.prototype.getStreams = function (event) {
         var self = this;
-        var plainPath = "channels/" + encodeURIComponent(event.id) + ".json";
-        var preferredPath = event.adsLimit > 0 ? "channels/" + encodeURIComponent(event.id) + "e.json" : plainPath;
+        var plainPath = event.streamPath || event.id;
+        var preferredPath = plainPath;
 
         function load(path) {
             return self.get(path).then(function (payload) {

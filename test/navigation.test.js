@@ -90,3 +90,44 @@ test("moves down through category, status, and event regions even when geometry 
     manager.move("down");
     assert.equal(manager.current, event, "a second down enters the event list");
 });
+
+test("moves linearly within fixture rows before returning to the status rail", function () {
+    var navigation = loadNavigation();
+    var document = { body: {}, addEventListener: function () {}, removeEventListener: function () {} };
+    var status = focusable(document, "status-rail", 100, 180);
+    var first = focusable(document, "event-list", 850, 250);
+    var second = focusable(document, "event-list", 850, 310);
+    var third = focusable(document, "event-list", 850, 370);
+    var elements = [status, first, second, third];
+    var manager = new navigation.FocusManager({ scope: { querySelectorAll: function () { return elements; } } });
+
+    manager.focus(first);
+    manager.move("down");
+    assert.equal(manager.current, second);
+    manager.move("down");
+    assert.equal(manager.current, third);
+    manager.move("up");
+    assert.equal(manager.current, second);
+    manager.move("up");
+    assert.equal(manager.current, first);
+    manager.move("up");
+    assert.equal(manager.current, status);
+});
+
+test("moves linearly through the playable stream list", function () {
+    var navigation = loadNavigation();
+    var document = { body: {}, addEventListener: function () {}, removeEventListener: function () {} };
+    var first = focusable(document, "stream-list", 100, 100);
+    var second = focusable(document, "stream-list", 100, 500);
+    var third = focusable(document, "stream-list", 600, 300);
+    var elements = [first, second, third];
+    var manager = new navigation.FocusManager({ scope: { querySelectorAll: function () { return elements; } } });
+
+    manager.focus(first);
+    manager.move("down");
+    assert.equal(manager.current, second);
+    manager.move("down");
+    assert.equal(manager.current, third);
+    manager.move("up");
+    assert.equal(manager.current, second);
+});

@@ -23,7 +23,7 @@ runScript('js/remote-config.js');
 runScript('js/api-client.js');
 
 async function run() {
-    const api = new global.SportzXApi({ baseUrl: "https://mymodi.top/", userAgent: "okhttp/4.12.0" });
+    const api = new global.SportzXApi({ baseUrl: "https://api.whatyouthink.site/", userAgent: "okhttp/4.12.0" });
     const guide = await api.getGuide();
     
     let tested = 0;

@@ -20,42 +20,21 @@ const fetch = (url) => new Promise((resolve, reject) => {
 });
 
 async function run() {
-    const eventsStr = await fetch('https://mymodi.top/events.json');
-    const events = decoder.decodeEnvelope(eventsStr);
-    
+    const baseUrl = 'https://api.whatyouthink.site/';
+    const eventsStr = await fetch(baseUrl + 'events.txt');
+    const rows = JSON.parse(await decoder.decodeGeeSportsPayload(eventsStr));
+    const events = rows.map(row => JSON.parse(row.event)).filter(event => event.visible !== false);
+
     let tested = 0;
     for (const ev of events) {
-        if (!ev.formats || ev.formats.length === 0) continue;
-        console.log(`\nEvent: ${ev.eventInfo.eventName}`);
-        
-        for (const fmt of ev.formats) {
-            const streamsStr = await fetch(`https://mymodi.top/eventDetails/${ev.eventInfo.eventId}/${fmt.formatId}.json`);
-            let streams = [];
-            try { streams = decoder.decodeEnvelope(streamsStr); } catch(e) {}
-            
-            for (const s of streams) {
-                const url = s.stream_url.startsWith('http') ? s.stream_url : `https://mymodi.top/${s.stream_url}`;
-                let streamDef = s;
-                if (!s.stream_url.startsWith('http') && s.stream_url.endsWith('.json')) {
-                    const resolvedStr = await fetch(url);
-                    streamDef = decoder.decodeEnvelope(resolvedStr);
-                }
-                const link = streamDef.link || streamDef.stream_url;
-                console.log(`- Resolved: ${link}`);
-                
-                const { execSync } = require('child_process');
-                try {
-                    const hLink = link.replace(/^https:/, 'http:');
-                    const httpsHead = execSync(`curl -s -L -I "${link}"`, {encoding:'utf8'}).split('\n')[0];
-                    console.log(`  HTTPS HEAD:`, httpsHead);
-                    
-                    const httpHead = execSync(`curl -s -L -I "${hLink}"`, {encoding:'utf8'}).split('\n')[0];
-                    console.log(`  HTTP HEAD:`, httpHead);
-                } catch(e) {
-                    console.log("  Curl failed");
-                }
-            }
-        }
+        if (!ev.links) continue;
+        console.log(`\nEvent: ${ev.eventName}`);
+        const streamsStr = await fetch(baseUrl + ev.links);
+        const streams = JSON.parse(await decoder.decodeGeeSportsPayload(streamsStr));
+        streams.forEach(stream => {
+            const kind = stream.api ? 'encrypted DASH' : 'direct stream';
+            console.log(`- ${stream.name}: ${kind} (${stream.link.split('|')[0]})`);
+        });
         tested++;
         if (tested >= 3) break;
     }

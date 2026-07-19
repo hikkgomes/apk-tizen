@@ -111,10 +111,10 @@ test("keeps expired API fixtures visible in All", function () {
     var result = context.SportzXApiUtils.filterGuideEvents([event], "All", "All", now);
 
     assert.equal(result.events.length, 1);
-    assert.equal(result.scheduleStale, true);
+    assert.equal(result.scheduleStale, false);
 });
 
-test("keeps status filters truthful when an entire sport schedule is stale", function () {
+test("keeps status filters truthful without inventing schedule errors", function () {
     var context = loadApi();
     var now = new Date("2026-07-19T12:00:00Z");
     var football = context.SportzXApiUtils.normalizeEvent({
@@ -127,7 +127,54 @@ test("keeps status filters truthful when an entire sport schedule is stale", fun
     var result = context.SportzXApiUtils.filterGuideEvents([football], "Football", "Live", now);
 
     assert.equal(result.events.length, 0);
-    assert.equal(result.scheduleStale, true);
+    assert.equal(result.scheduleStale, false);
+});
+
+test("normalizes GeeSports events and parses their local date format", function () {
+    var context = loadApi();
+    var event = context.SportzXApiUtils.normalizeEvent({
+        event: JSON.stringify({
+            visible: true,
+            priority: 2,
+            category: "World Cup",
+            eventName: "Spain vs Argentina",
+            teamAName: "Spain",
+            teamBName: "Argentina",
+            date: "19/07/2026",
+            time: "18:45:00",
+            link_names: ["Feed 1", "Feed 2"],
+            links: "pro/event.txt"
+        })
+    }, 0);
+    var start = context.SportzXApiUtils.parseEventTime(event.eventInfo.startTime);
+
+    assert.equal(event.id, "pro/event.txt");
+    assert.equal(event.cat, "World Cup");
+    assert.equal(event.formats.length, 2);
+    assert.equal(start.getFullYear(), 2026);
+    assert.equal(start.getMonth(), 6);
+    assert.equal(start.getDate(), 19);
+    assert.equal(start.getHours(), 18);
+});
+
+test("recognizes GeeSports ClearKey feeds while keeping direct HLS playable", function () {
+    var context = loadApi();
+    var clearKey = context.SportzXApiUtils.normalizeStream({
+        name: "DASH",
+        link: "https://cdn.example/live/manifest.mpd",
+        api: "00112233445566778899aabbccddeeff:ffeeddccbbaa99887766554433221100",
+        scheme: 0
+    }, 0);
+    var hls = context.SportzXApiUtils.normalizeStream({
+        name: "HLS",
+        link: "https://cdn.example/live/playlist.m3u8",
+        scheme: 0
+    }, 1);
+
+    assert.equal(clearKey.title, "DASH");
+    assert.equal(clearKey.drmType, "clearkey");
+    assert.equal(context.SportzXApiUtils.streamSupport(clearKey).supported, false);
+    assert.equal(context.SportzXApiUtils.streamSupport(hls).supported, true);
 });
 
 test("does not label ordinary empty status filters as stale fallbacks", function () {

@@ -2,28 +2,28 @@
     "use strict";
 
     root.SportzXConfig = {
-        appVersion: "2.5",
-        appBuild: "14",
-        packageName: "com.sportzx.live",
-        // Last known production endpoint from the Android app. Remote Config is
-        // still preferred when explicitly refreshed from Settings.
-        fallbackApiBase: "https://mymodi.top/",
+        appVersion: "3.8",
+        appBuild: "11",
+        packageName: "com.live.geesports",
+        // GeeSports' current production endpoint. Remote Config can update it
+        // without requiring another TV build.
+        fallbackApiBase: "https://api.whatyouthink.site/",
         fallbackUserAgent: "Mozilla/5.0 (SmartTV; SmartTV) AppleWebKit/537.42 Tizen/6.5",
         firebase: {
-            projectId: "sportzx-7cc3f",
-            projectNumber: "446339309956",
-            appId: "1:446339309956:android:b26582b5d2ad841861bdd1",
-            apiKey: "AIzaSyBa5qiq95T97xe4uSYlKo0Wosmye_UEf6w",
-            androidCertSha1: "A0047CD121AE5F71048D41854702C52814E2AE2B",
+            projectId: "gee-sports-dcc62",
+            projectNumber: "723237950983",
+            appId: "1:723237950983:android:84dfd1ce9f6664417bfca2",
+            apiKey: "AIzaSyDzfPo4ElrL-uZViIScGwfBnpJ-pADNJ5U",
+            androidCertSha1: "391F924B34394C0C2B8AD7FD7874068B9D575A08",
             installationsSdk: "a:17.2.0",
             remoteConfigSdk: "22.1.2"
         },
         storage: {
-            apiBase: "sportzx.apiBase",
-            userAgent: "sportzx.userAgent",
-            remoteEntries: "sportzx.remoteEntries",
-            remoteFetchedAt: "sportzx.remoteFetchedAt",
-            firebaseInstallation: "sportzx.firebaseInstallation"
+            apiBase: "geesports.apiBase",
+            userAgent: "geesports.userAgent",
+            remoteEntries: "geesports.remoteEntries",
+            remoteFetchedAt: "geesports.remoteFetchedAt",
+            firebaseInstallation: "geesports.firebaseInstallation"
         },
         refreshIntervalMs: 5 * 60 * 1000,
         requestTimeoutMs: 15000

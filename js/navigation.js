@@ -136,12 +136,18 @@
     FocusManager.prototype.move = function (direction) {
         var candidates = this.elements();
         var current = this.current;
+        var orderedMove;
         var source;
         var best = null;
         var bestScore = Infinity;
 
         if (!current || !visible(current)) {
             return candidates.length ? this.focus(candidates[0]) : false;
+        }
+
+        orderedMove = this.orderedRegionMove(current, direction, candidates);
+        if (orderedMove !== null) {
+            return orderedMove;
         }
 
         candidates = this.navigationRegionCandidates(current, direction, candidates);
@@ -181,6 +187,47 @@
         });
 
         return best ? this.focus(best) : false;
+    };
+
+    // Rows and rails have a semantic order that is more reliable than their
+    // geometry after scrolling. This keeps remote navigation deterministic.
+    FocusManager.prototype.orderedRegionMove = function (current, direction, candidates) {
+        var selector = "";
+        var delta = 0;
+        var members;
+        var index;
+        var targetIndex;
+
+        if (current.closest && current.closest("#event-list") && (direction === "up" || direction === "down")) {
+            selector = "#event-list";
+            delta = direction === "up" ? -1 : 1;
+        } else if (current.closest && current.closest("#stream-list") && (direction === "up" || direction === "down")) {
+            selector = "#stream-list";
+            delta = direction === "up" ? -1 : 1;
+        } else if (current.closest && current.closest("#category-rail") && (direction === "left" || direction === "right")) {
+            selector = "#category-rail";
+            delta = direction === "left" ? -1 : 1;
+        } else if (current.closest && current.closest("#status-rail") && (direction === "left" || direction === "right")) {
+            selector = "#status-rail";
+            delta = direction === "left" ? -1 : 1;
+        } else {
+            return null;
+        }
+
+        members = candidates.filter(function (candidate) {
+            return candidate.closest && candidate.closest(selector);
+        });
+        index = members.indexOf(current);
+        targetIndex = index + delta;
+
+        // Up from the first fixture intentionally crosses into the status rail.
+        if (selector === "#event-list" && direction === "up" && index === 0) {
+            return null;
+        }
+        if (index === -1 || targetIndex < 0 || targetIndex >= members.length) {
+            return false;
+        }
+        return this.focus(members[targetIndex]);
     };
 
     FocusManager.prototype.navigationRegionCandidates = function (current, direction, candidates) {

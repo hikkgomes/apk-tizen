@@ -137,7 +137,7 @@ loadScript("../js/api-client.js");
 test("uses the built-in API fallback on a fresh install", function () {
     mockLocalStorage.clear();
     var result = context.SportzXRemoteConfig.configured();
-    assert.equal(result.apiBase, "https://mymodi.top/");
+    assert.equal(result.apiBase, "https://api.whatyouthink.site/");
     assert.equal(result.source, "built-in fallback");
 });
 

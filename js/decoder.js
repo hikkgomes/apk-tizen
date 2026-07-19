@@ -12,6 +12,9 @@
         "use strict";
 
         var DEVICE_KEY_HEX = "1676ec7db4771b0d826d70369b579684b182d2c0133be041bdd55f5d6d79a98b";
+        // Protocol material derived by GeeSports from its signing certificate.
+        var GEESPORTS_AES_KEY = "RT1zdnBRcVZvSU1t";
+        var GEESPORTS_AES_IV = "bkmlmKnk9i5Khs9n";
         var SHA256_BLOCK_SIZE = 64;
         var SHA256_OUTPUT_SIZE = 32;
         var SHA256_CONSTANTS = [
@@ -177,6 +180,42 @@
             }
 
             throw new Error("No Base64 decoder is available");
+        }
+
+        function decodeBase64(encoded) {
+            var normalized = String(encoded == null ? "" : encoded).replace(/\s+/g, "");
+            if (!/^[A-Za-z0-9+/]*={0,2}$/.test(normalized) || normalized.length % 4 === 1) {
+                throw new Error("Invalid Base64 payload");
+            }
+            return decodeBase64Url(normalized.replace(/\+/g, "-").replace(/\//g, "_"));
+        }
+
+        function asciiBytes(value) {
+            var text = String(value || "");
+            var result = new Uint8Array(text.length);
+            var i;
+            for (i = 0; i < text.length; i += 1) {
+                result[i] = text.charCodeAt(i) & 0xff;
+            }
+            return result;
+        }
+
+        function descrambleGeeSports(value) {
+            var bytes = toBytes(value);
+            var swapped = copyBytes(bytes);
+            var result = new Uint8Array(bytes.length);
+            var i;
+            var temporary;
+
+            for (i = 0; i + 1 < swapped.length; i += 2) {
+                temporary = swapped[i];
+                swapped[i] = swapped[i + 1];
+                swapped[i + 1] = temporary;
+            }
+            for (i = 0; i < swapped.length; i += 1) {
+                result[i] = swapped[swapped.length - 1 - i];
+            }
+            return result;
         }
 
         function rotateRight8(value, amount) {
@@ -438,7 +477,7 @@
             return null;
         }
 
-        function decryptAes256Cbc(ciphertextValue, keyValue, ivValue, providerOverride) {
+        function decryptAesCbc(ciphertextValue, keyValue, ivValue, providerOverride) {
             var ciphertext = toBytes(ciphertextValue);
             var key = toBytes(keyValue);
             var iv = toBytes(ivValue);
@@ -449,8 +488,9 @@
                 throw new Error("WebCrypto AES-CBC support is required");
             }
 
-            if (key.length !== 32 || iv.length !== 16 || ciphertext.length === 0 || ciphertext.length % 16 !== 0) {
-                throw new Error("Invalid AES-256-CBC inputs");
+            if ((key.length !== 16 && key.length !== 24 && key.length !== 32) ||
+                    iv.length !== 16 || ciphertext.length === 0 || ciphertext.length % 16 !== 0) {
+                throw new Error("Invalid AES-CBC inputs");
             }
 
             return subtle.importKey(
@@ -468,6 +508,14 @@
             }).then(function (plaintext) {
                 return new Uint8Array(plaintext);
             });
+        }
+
+        function decryptAes256Cbc(ciphertextValue, keyValue, ivValue, providerOverride) {
+            var key = toBytes(keyValue);
+            if (key.length !== 32) {
+                throw new Error("Invalid AES-256-CBC key");
+            }
+            return decryptAesCbc(ciphertextValue, key, ivValue, providerOverride);
         }
 
         function transformPlaintext(rawValue) {
@@ -597,12 +645,38 @@
             });
         }
 
+        function decodeGeeSportsPayload(encoded, providerOverride) {
+            var PromiseConstructor = promiseConstructor();
+            return PromiseConstructor.resolve().then(function () {
+                var outer = decodeBase64(String(encoded == null ? "" : encoded).replace(/^\s+|\s+$/g, ""));
+                var innerBase64Bytes = descrambleGeeSports(outer);
+                var innerBase64 = "";
+                var i;
+
+                for (i = 0; i < innerBase64Bytes.length; i += 1) {
+                    innerBase64 += String.fromCharCode(innerBase64Bytes[i]);
+                }
+                return decryptAesCbc(
+                    decodeBase64(innerBase64),
+                    asciiBytes(GEESPORTS_AES_KEY),
+                    asciiBytes(GEESPORTS_AES_IV),
+                    providerOverride
+                );
+            }).then(function (plaintext) {
+                return utf8Decode(plaintext);
+            });
+        }
+
         return {
             DEVICE_KEY_HEX: DEVICE_KEY_HEX,
+            GEESPORTS_AES_KEY: GEESPORTS_AES_KEY,
+            GEESPORTS_AES_IV: GEESPORTS_AES_IV,
             decodeEnvelope: decodeEnvelope,
+            decodeGeeSportsPayload: decodeGeeSportsPayload,
             parseEnvelope: parseEnvelope,
             decodeBase64Url: decodeBase64Url,
             deriveKeyMaterial: deriveKeyMaterial,
+            decryptAesCbc: decryptAesCbc,
             decryptAes256Cbc: decryptAes256Cbc,
             transformPlaintext: transformPlaintext,
             utf8Decode: utf8Decode,
