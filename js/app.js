@@ -301,15 +301,22 @@
     function renderEvents() {
         var selection = SportzXApiUtils.filterGuideEvents(allEvents, activeCategory, activeStatus);
         var filtered = selection.events;
+        var emptyCopy;
 
         if (eventCount) {
-            eventCount.textContent = filtered.length + " fixtures" + (selection.scheduleFallback ? " • schedule may be stale" : "");
+            eventCount.textContent = filtered.length + " fixtures" + (selection.scheduleStale ? " • schedule unavailable" : "");
         }
 
         if (filtered.length === 0) {
             emptyState.classList.remove("is-hidden");
             eventList.classList.add("is-hidden");
-            eventPreview.innerHTML = '<div class="preview-empty"><span class="preview-orbit"></span><p>No fixtures found matching this filter.</p></div>';
+            emptyCopy = selection.scheduleStale && activeStatus !== "All" ?
+                "The source schedule is stale, so no fixtures can be classified as " + activeStatus.toLowerCase() + ". Use All to access its available feeds." :
+                "No fixtures found matching this filter.";
+            if (emptyState.querySelector("p")) {
+                emptyState.querySelector("p").textContent = emptyCopy;
+            }
+            eventPreview.innerHTML = '<div class="preview-empty"><span class="preview-orbit"></span><p>' + escapeHTML(emptyCopy) + '</p></div>';
             return;
         }
 
@@ -321,7 +328,9 @@
             var timeHtml = "";
             var isLive = isEventLive(event);
 
-            if (isLive) {
+            if (selection.scheduleStale) {
+                timeHtml = '<strong>--:--</strong><span>SCHEDULE UNAVAILABLE</span>';
+            } else if (isLive) {
                 timeHtml = '<span class="live-label">LIVE</span>';
             } else {
                 var start = SportzXApiUtils.parseEventTime(event.eventInfo.startTime);
@@ -375,13 +384,14 @@
         }
 
         var isLive = isEventLive(event);
+        var scheduleStale = SportzXApiUtils.filterGuideEvents(allEvents, activeCategory, "All").scheduleStale;
         var feedCount = event.formats.length + event.formatsNew.length;
 
         var html = '<div class="preview-content">' +
                    '  <div class="preview-top">' +
                    '    <span class="preview-category">' + escapeHTML(event.cat) + '</span>' +
                    (event.eventInfo.isHot ? '    <span class="hot-chip">HOT</span>' : '') +
-                   (isLive ? '    <span class="live-chip">LIVE</span>' : '') +
+                   (isLive && !scheduleStale ? '    <span class="live-chip">LIVE</span>' : '') +
                    '  </div>' +
                    '  <h2>' + escapeHTML(event.eventInfo.eventName) + '</h2>' +
                    '  <p class="preview-competition">' + escapeHTML(event.eventInfo.eventType || "") + '</p>' +
@@ -401,8 +411,8 @@
                    '    </div>' +
                    '  </div>' +
                    '  <div class="preview-schedule">' +
-                   '    <span>Scheduled Start</span>' +
-                   '    <strong>' + escapeHTML(formatTime(event.eventInfo.startTime)) + '</strong>' +
+                   '    <span>' + (scheduleStale ? "Schedule" : "Scheduled Start") + '</span>' +
+                   '    <strong>' + (scheduleStale ? "Unavailable — source is stale" : escapeHTML(formatTime(event.eventInfo.startTime))) + '</strong>' +
                    '  </div>' +
                    '  <div class="preview-action">' +
                    '    <span>Press <kbd>OK</kbd> to watch</span>' +

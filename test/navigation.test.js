@@ -32,6 +32,27 @@ function loadNavigation() {
     return context.SportzXNavigation;
 }
 
+function focusable(document, region, x, y) {
+    var classes = { focusable: true };
+    return {
+        parentNode: document.body,
+        offsetWidth: 100,
+        offsetHeight: 40,
+        disabled: false,
+        getAttribute: function () { return null; },
+        getBoundingClientRect: function () {
+            return { left: x, right: x + 100, top: y, bottom: y + 40, width: 100, height: 40 };
+        },
+        closest: function (selector) { return selector === "#" + region ? { id: region } : null; },
+        focus: function () {},
+        classList: {
+            add: function (name) { classes[name] = true; },
+            remove: function (name) { delete classes[name]; },
+            contains: function (name) { return Boolean(classes[name]); }
+        }
+    };
+}
+
 test("changes filter selection without replacing the focused chip", function () {
     var navigation = loadNavigation();
     var all = chip("data-filter-cat", "All", true);
@@ -45,4 +66,27 @@ test("changes filter selection without replacing the focused chip", function () 
     assert.equal(all.classList.contains("is-active"), false);
     assert.equal(football.classList.contains("is-active"), true);
     assert.equal(chips[1], football, "the original DOM object is preserved");
+});
+
+test("moves down through category, status, and event regions even when geometry favors an event", function () {
+    var navigation = loadNavigation();
+    var document = {
+        body: {},
+        addEventListener: function () {},
+        removeEventListener: function () {}
+    };
+    var category = focusable(document, "category-rail", 900, 100);
+    var statusAll = focusable(document, "status-rail", 100, 180);
+    var statusUpcoming = focusable(document, "status-rail", 400, 180);
+    var event = focusable(document, "event-list", 850, 250);
+    var elements = [category, statusAll, statusUpcoming, event];
+    var scope = { querySelectorAll: function () { return elements; } };
+    var manager = new navigation.FocusManager({ scope: scope });
+
+    manager.focus(category);
+    manager.move("down");
+    assert.equal(manager.current, statusUpcoming, "down from a late category stays in the status rail");
+
+    manager.move("down");
+    assert.equal(manager.current, event, "a second down enters the event list");
 });

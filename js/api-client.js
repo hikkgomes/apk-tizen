@@ -158,7 +158,7 @@
                 teamAFlag: asString(info.teamAFlag),
                 teamBFlag: asString(info.teamBFlag),
                 eventName: asString(info.eventName, asString(info.teamA) + " vs " + asString(info.teamB)),
-                eventType: asString(info.eventType),
+                eventType: String(info.eventType == null ? "" : info.eventType).toLowerCase() === "null" ? "" : asString(info.eventType),
                 eventBanner: asString(info.eventBanner),
                 isHot: Boolean(info.isHot),
                 startTime: asString(info.startTime),
@@ -333,12 +333,7 @@
             return isEventExpired(event, current);
         });
 
-        // The production guide occasionally serves an entirely stale schedule while
-        // its channel endpoints remain populated. Keep those feeds reachable.
-        if (status !== "All" && filtered.length === 0 && allSchedulesExpired) {
-            return { events: categoryEvents, scheduleFallback: true };
-        }
-        return { events: filtered, scheduleFallback: false };
+        return { events: filtered, scheduleStale: allSchedulesExpired };
     }
 
     function finalPathSegment(url) {

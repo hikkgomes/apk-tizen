@@ -111,10 +111,10 @@ test("keeps expired API fixtures visible in All", function () {
     var result = context.SportzXApiUtils.filterGuideEvents([event], "All", "All", now);
 
     assert.equal(result.events.length, 1);
-    assert.equal(result.scheduleFallback, false);
+    assert.equal(result.scheduleStale, true);
 });
 
-test("falls back to populated feeds when an entire sport schedule is stale", function () {
+test("keeps status filters truthful when an entire sport schedule is stale", function () {
     var context = loadApi();
     var now = new Date("2026-07-19T12:00:00Z");
     var football = context.SportzXApiUtils.normalizeEvent({
@@ -126,9 +126,8 @@ test("falls back to populated feeds when an entire sport schedule is stale", fun
     }, 0);
     var result = context.SportzXApiUtils.filterGuideEvents([football], "Football", "Live", now);
 
-    assert.equal(result.events.length, 1);
-    assert.equal(result.events[0].cat, "Football");
-    assert.equal(result.scheduleFallback, true);
+    assert.equal(result.events.length, 0);
+    assert.equal(result.scheduleStale, true);
 });
 
 test("does not label ordinary empty status filters as stale fallbacks", function () {
@@ -144,5 +143,14 @@ test("does not label ordinary empty status filters as stale fallbacks", function
     var result = context.SportzXApiUtils.filterGuideEvents([upcoming], "Football", "Live", now);
 
     assert.equal(result.events.length, 0);
-    assert.equal(result.scheduleFallback, false);
+    assert.equal(result.scheduleStale, false);
+});
+
+test("removes literal null competition labels from the backend", function () {
+    var context = loadApi();
+    var event = context.SportzXApiUtils.normalizeEvent({
+        eventInfo: { eventType: "null" }
+    }, 0);
+
+    assert.equal(event.eventInfo.eventType, "");
 });

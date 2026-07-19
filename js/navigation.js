@@ -144,6 +144,8 @@
             return candidates.length ? this.focus(candidates[0]) : false;
         }
 
+        candidates = this.navigationRegionCandidates(current, direction, candidates);
+
         source = center(current.getBoundingClientRect());
         candidates.forEach(function (candidate) {
             var target;
@@ -179,6 +181,36 @@
         });
 
         return best ? this.focus(best) : false;
+    };
+
+    FocusManager.prototype.navigationRegionCandidates = function (current, direction, candidates) {
+        var currentCategory = current.closest && current.closest("#category-rail");
+        var currentStatus = current.closest && current.closest("#status-rail");
+        var currentEvents = current.closest && current.closest("#event-list");
+        var selector = "";
+        var preferred;
+
+        if (direction === "down" && currentCategory) {
+            selector = "#status-rail";
+        } else if (direction === "down" && currentStatus) {
+            selector = "#event-list";
+        } else if (direction === "up" && currentEvents) {
+            selector = "#status-rail";
+        } else if (direction === "up" && currentStatus) {
+            selector = "#category-rail";
+        } else if ((direction === "left" || direction === "right") && currentCategory) {
+            selector = "#category-rail";
+        } else if ((direction === "left" || direction === "right") && currentStatus) {
+            selector = "#status-rail";
+        }
+
+        if (!selector) {
+            return candidates;
+        }
+        preferred = candidates.filter(function (candidate) {
+            return candidate.closest && candidate.closest(selector);
+        });
+        return preferred.length ? preferred : candidates;
     };
 
     FocusManager.prototype.handleKey = function (event) {
