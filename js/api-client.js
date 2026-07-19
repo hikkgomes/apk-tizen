@@ -280,17 +280,33 @@
     function normalizeStream(value, index) {
         var parsed;
         var clearKey;
+        var tokenConfig = {};
+        var tokenType;
         value = value || {};
-        parsed = parseStreamLink(value.link, value.headers && typeof value.headers === "object" ? value.headers : {});
+        if (typeof value.tokenApi === "string" && trim(value.tokenApi)) {
+            try {
+                tokenConfig = JSON.parse(value.tokenApi);
+            } catch (error) {
+                tokenConfig = {};
+            }
+        } else if (value.tokenApi && typeof value.tokenApi === "object") {
+            tokenConfig = value.tokenApi;
+        }
+        tokenType = trim(tokenConfig.type).toLowerCase();
+        parsed = parseStreamLink(
+            value.link || tokenConfig.url || tokenConfig.api,
+            value.headers && typeof value.headers === "object" ? value.headers : {}
+        );
         clearKey = /^[0-9a-f]{32}:[0-9a-f]{32}$/i.test(trim(value.api)) ? trim(value.api) : "";
         return {
             title: asString(value.title, asString(value.name, "Feed " + (index + 1))),
             link: parsed.link,
-            type: clearKey ? 1 : (Number(value.type) || 0),
+            type: clearKey ? 1 : (tokenType === "embed" ? 2 : (Number(value.type) || 0)),
             api: asString(value.api),
             drmType: clearKey ? "clearkey" : (value.drmType == null ? null : String(value.drmType)),
             clearKey: clearKey,
             scheme: Number(value.scheme) || 0,
+            tokenConfig: tokenConfig,
             headers: parsed.headers,
             index: index,
             raw: value
@@ -512,6 +528,7 @@
 
     SportzXApi.prototype.getEvents = function () {
         return this.get("events.txt").then(function (payload) {
+            var now = new Date();
             if (!Array.isArray(payload)) {
                 throw new Error("events.txt did not contain an event list");
             }
@@ -520,6 +537,11 @@
             }).sort(function (left, right) {
                 var leftTime = parseEventTime(left.eventInfo.startTime);
                 var rightTime = parseEventTime(right.eventInfo.startTime);
+                var leftExpired = isEventExpired(left, now);
+                var rightExpired = isEventExpired(right, now);
+                if (leftExpired !== rightExpired) {
+                    return leftExpired ? 1 : -1;
+                }
                 if (left.priority !== right.priority) {
                     return right.priority - left.priority;
                 }

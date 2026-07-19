@@ -566,7 +566,10 @@
             streams.forEach(function (stream, index) {
                 var kind = SportzXApiUtils.streamKind(stream);
                 var support = SportzXApiUtils.streamSupport(stream);
-                var attributes = support.supported ? ' role="button" class="stream-option focusable" tabindex="-1" data-stream-index="' + index + '"' : ' class="stream-option is-unavailable" aria-disabled="true"';
+                var attributes = ' role="button" class="stream-option focusable' +
+                    (support.supported ? '' : ' is-unavailable') +
+                    '" tabindex="-1" data-stream-index="' + index + '"' +
+                    (support.supported ? '' : ' aria-disabled="true"');
                 html += '<div' + attributes + '>' +
                         '  <div class="stream-index">' + (index + 1) + '</div>' +
                         '  <div class="stream-copy">' +
@@ -580,7 +583,8 @@
 
             // Focus first stream item
             setTimeout(function () {
-                var firstStream = streamList.querySelector(".stream-option.focusable");
+                var firstStream = streamList.querySelector(".stream-option:not(.is-unavailable)") ||
+                    streamList.querySelector(".stream-option");
                 if (firstStream) {
                     fm.setScope(streamDialog, firstStream);
                 } else {

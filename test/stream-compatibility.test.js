@@ -177,6 +177,23 @@ test("recognizes GeeSports ClearKey feeds while keeping direct HLS playable", fu
     assert.equal(context.SportzXApiUtils.streamSupport(hls).supported, true);
 });
 
+test("keeps GeeSports embed resolver rows visible but marks them Android-only", function () {
+    var context = loadApi();
+    var embed = context.SportzXApiUtils.normalizeStream({
+        name: "XTREME FHD",
+        link: "",
+        tokenApi: JSON.stringify({
+            api: "https://embed.example/event",
+            type: "embed",
+            link_key: "playback_url"
+        })
+    }, 0);
+
+    assert.equal(embed.link, "https://embed.example/event");
+    assert.equal(embed.type, 2);
+    assert.equal(context.SportzXApiUtils.streamSupport(embed).code, "ANDROID_WEBVIEW_REQUIRED");
+});
+
 test("does not label ordinary empty status filters as stale fallbacks", function () {
     var context = loadApi();
     var now = new Date("2026-07-19T12:00:00Z");

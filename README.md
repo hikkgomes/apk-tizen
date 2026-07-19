@@ -7,7 +7,7 @@ SportzX TV is a premium, stadium-like live sports event guide and playback appli
 ## 🚀 Features
 
 - **API Endpoint Resilience**: Uses cached or manually configured endpoints, a built-in production fallback, and optional Firebase Remote Config refresh.
-- **Envelope Decryption**: Decrypts secure API payloads in real-time.
+- **Current GeeSports Guide**: Discovers GeeSports 3.8's production endpoint and decrypts its current event and feed payloads in real-time.
 - **TV-Optimised Navigation**: Implements fully spatial 5-way D-pad remote navigation with focus tracking and back-button behavior.
 - **Advanced Playback**: Integrated Samsung AVPlay supporting custom Cookies and User-Agent headers, with fallback to standard HTML5 `<video>` for browser development.
 - **Robust Error Handling**: Dedicated fallback states for network offline, resolver failures, and unsupported codecs.
@@ -25,7 +25,7 @@ sportszx/
 │   └── app.css          # TV UI stylesheets and animations
 ├── js/
 │   ├── config.js        # Static configuration (Firebase SDK info, etc.)
-│   ├── decoder.js       # Envelope decryption utility (AES-256-CBC)
+│   ├── decoder.js       # SportzX and GeeSports payload decryption
 │   ├── remote-config.js # Dynamic URL discovery from Firebase Remote Config
 │   ├── api-client.js    # API communication client
 │   ├── navigation.js    # Remote control focus & navigation manager
