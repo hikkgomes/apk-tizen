@@ -6,14 +6,15 @@ var path = require("node:path");
 var test = require("node:test");
 var vm = require("node:vm");
 
-function loadApi() {
+function loadApi(appConfig) {
     var context = {
         console: { log: function () {}, error: function () {} },
         Date: Date,
         Error: Error,
         JSON: JSON,
         Promise: Promise,
-        XMLHttpRequest: function () {}
+        XMLHttpRequest: function () {},
+        SportzXConfig: appConfig || {}
     };
     var code = fs.readFileSync(path.join(__dirname, "../js/api-client.js"), "utf8");
     vm.createContext(context);
@@ -53,6 +54,28 @@ test("allows AVPlay-supported headers and rejects arbitrary request headers", fu
     assert.equal(utils.streamSupport(supported).supported, true);
     assert.equal(utils.streamSupport(blocked).supported, false);
     assert.equal(utils.streamSupport(blocked).code, "CUSTOM_HEADERS_UNSUPPORTED");
+});
+
+test("routes Referer-protected HLS through the configured LAN proxy", async function () {
+    var context = loadApi({
+        streamProxy: {
+            baseUrl: "http://192.168.1.41:8099/hls",
+            token: "test-proxy-token"
+        }
+    });
+    var api = new context.SportzXApi({ userAgent: "Default TV Agent" });
+    var stream = context.SportzXApiUtils.normalizeStream({
+        name: "Protected HLS",
+        link: "https://media.example/live.m3u8|Referer=https%3A%2F%2Forigin.example%2F&User-Agent=Feed+Agent"
+    }, 0);
+
+    assert.equal(context.SportzXApiUtils.streamSupport(stream).code, "SUPPORTED_VIA_PROXY");
+    var resolved = await api.resolveStream(stream);
+    assert.match(resolved.link, /^http:\/\/192\.168\.1\.41:8099\/hls\?/);
+    assert.match(resolved.link, /url=https%3A%2F%2Fmedia\.example%2Flive\.m3u8/);
+    assert.match(resolved.link, /referer=https%3A%2F%2Forigin\.example%2F/);
+    assert.match(resolved.link, /user_agent=Feed%20Agent/);
+    assert.deepEqual(JSON.parse(JSON.stringify(resolved.headers)), {});
 });
 
 test("rejects Android WebView and ClearKey feed types with precise codes", async function () {

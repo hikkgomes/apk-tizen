@@ -570,11 +570,12 @@
                     (support.supported ? '' : ' is-unavailable') +
                     '" tabindex="-1" data-stream-index="' + index + '"' +
                     (support.supported ? '' : ' aria-disabled="true"');
+                var supportCopy = support.code === "SUPPORTED_VIA_PROXY" ? "Ready via LAN proxy" : "Ready to play";
                 html += '<div' + attributes + '>' +
                         '  <div class="stream-index">' + (index + 1) + '</div>' +
                         '  <div class="stream-copy">' +
                         '    <strong>' + escapeHTML(stream.title) + '</strong>' +
-                        '    <small>' + escapeHTML(support.supported ? "Ready to play" : support.reason) + '</small>' +
+                        '    <small>' + escapeHTML(support.supported ? supportCopy : support.reason) + '</small>' +
                         '  </div>' +
                         '  <div class="format-tag">' + escapeHTML(support.supported ? kind : "UNAVAILABLE") + '</div>' +
                         '</div>';

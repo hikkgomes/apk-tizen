@@ -25,6 +25,7 @@ signature1.xml
 
 # Local configuration
 build/
+js/proxy-private.js
 *.log
 tv-*.txt
 dlog.txt

@@ -246,6 +246,74 @@
         headers[name] = value;
     }
 
+    function headerValue(headers, name) {
+        var wanted = String(name).toLowerCase();
+        var result = "";
+        Object.keys(headers || {}).some(function (existing) {
+            if (existing.toLowerCase() === wanted) {
+                result = String(headers[existing]);
+                return true;
+            }
+            return false;
+        });
+        return result;
+    }
+
+    function removeHeader(headers, name) {
+        var wanted = String(name).toLowerCase();
+        Object.keys(headers || {}).forEach(function (existing) {
+            if (existing.toLowerCase() === wanted) {
+                delete headers[existing];
+            }
+        });
+    }
+
+    function proxyConfiguration() {
+        var proxy = root.SportzXConfig && root.SportzXConfig.streamProxy || {};
+        if (!isHttpUrl(proxy.baseUrl) || !trim(proxy.token)) {
+            return null;
+        }
+        return { baseUrl: trim(proxy.baseUrl), token: trim(proxy.token) };
+    }
+
+    function requiresHeaderProxy(headers) {
+        return Boolean(headerValue(headers, "referer") || headerValue(headers, "origin"));
+    }
+
+    function applyHeaderProxy(stream, fallbackUserAgent) {
+        var proxy = proxyConfiguration();
+        var headers = stream.headers || {};
+        var referer = headerValue(headers, "referer");
+        var origin = headerValue(headers, "origin");
+        var userAgent = headerValue(headers, "user-agent") || fallbackUserAgent || "";
+        var cookie = headerValue(headers, "cookie");
+        var query;
+
+        if (!proxy || (!referer && !origin)) {
+            return stream;
+        }
+        query = "token=" + encodeURIComponent(proxy.token) +
+            "&url=" + encodeURIComponent(stream.link) +
+            "&referer=" + encodeURIComponent(referer);
+        if (userAgent) {
+            query += "&user_agent=" + encodeURIComponent(userAgent);
+        }
+        if (cookie) {
+            query += "&cookie=" + encodeURIComponent(cookie);
+        }
+        if (origin) {
+            query += "&origin=" + encodeURIComponent(origin);
+        }
+        stream.link = proxy.baseUrl + (proxy.baseUrl.indexOf("?") === -1 ? "?" : "&") + query;
+        removeHeader(headers, "referer");
+        removeHeader(headers, "origin");
+        removeHeader(headers, "user-agent");
+        removeHeader(headers, "cookie");
+        stream.headers = headers;
+        stream.proxied = true;
+        return stream;
+    }
+
     // The Android app accepts ExoPlayer-style URLs such as:
     // https://host/live.m3u8|Referer=https%3A%2F%2Fsite%2F&User-Agent=...
     function parseStreamLink(value, suppliedHeaders) {
@@ -454,6 +522,7 @@
         var parsed = parseStreamLink(stream && stream.link, stream && stream.headers);
         var unsupportedHeaders = [];
         var drmType = trim(stream && stream.drmType).toLowerCase();
+        var canProxyHeaders = Boolean(proxyConfiguration() && requiresHeaderProxy(parsed.headers));
 
         if (type === 2) {
             return {
@@ -481,7 +550,8 @@
 
         Object.keys(parsed.headers).forEach(function (name) {
             var lower = name.toLowerCase();
-            if (lower !== "user-agent" && lower !== "cookie") {
+            if (lower !== "user-agent" && lower !== "cookie" &&
+                    !(canProxyHeaders && (lower === "referer" || lower === "origin"))) {
                 unsupportedHeaders.push(name);
             }
         });
@@ -494,7 +564,11 @@
             };
         }
 
-        return { supported: true, code: "SUPPORTED", reason: "Compatible with Samsung AVPlay" };
+        return {
+            supported: true,
+            code: canProxyHeaders ? "SUPPORTED_VIA_PROXY" : "SUPPORTED",
+            reason: canProxyHeaders ? "Compatible through the LAN header proxy" : "Compatible with Samsung AVPlay"
+        };
     }
 
     function normalizeResolvedStream(stream) {
@@ -613,6 +687,7 @@
         var supportError;
 
         normalizeResolvedStream(resolved);
+        applyHeaderProxy(resolved, self.userAgent);
         supportError = unsupportedStreamError(resolved);
         if (supportError) {
             return Promise.reject(supportError);
@@ -689,6 +764,7 @@
         joinUrl: joinUrl,
         normalizeEvent: normalizeEvent,
         normalizeStream: normalizeStream,
+        applyHeaderProxy: applyHeaderProxy,
         filterGuideEvents: filterGuideEvents,
         isEventExpired: isEventExpired,
         isEventLive: isEventLive,

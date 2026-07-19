@@ -9,6 +9,10 @@
         // without requiring another TV build.
         fallbackApiBase: "https://api.whatyouthink.site/",
         fallbackUserAgent: "Mozilla/5.0 (SmartTV; SmartTV) AppleWebKit/537.42 Tizen/6.5",
+        streamProxy: {
+            baseUrl: "http://192.168.1.41:8099/hls",
+            token: ""
+        },
         firebase: {
             projectId: "gee-sports-dcc62",
             projectNumber: "723237950983",

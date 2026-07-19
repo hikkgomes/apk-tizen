@@ -1,0 +1,23 @@
+[Unit]
+Description=SportzX Referer-aware HLS proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+EnvironmentFile=/etc/sportszx-proxy.env
+ExecStart=/usr/bin/python3 /opt/sportszx-proxy/sportszx_proxy.py --bind 0.0.0.0 --port 8099
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target

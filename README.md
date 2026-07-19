@@ -9,7 +9,7 @@ SportzX TV is a premium, stadium-like live sports event guide and playback appli
 - **API Endpoint Resilience**: Uses cached or manually configured endpoints, a built-in production fallback, and optional Firebase Remote Config refresh.
 - **Current GeeSports Guide**: Discovers GeeSports 3.8's production endpoint and decrypts its current event and feed payloads in real-time.
 - **TV-Optimised Navigation**: Implements fully spatial 5-way D-pad remote navigation with focus tracking and back-button behavior.
-- **Advanced Playback**: Integrated Samsung AVPlay supporting custom Cookies and User-Agent headers, with fallback to standard HTML5 `<video>` for browser development.
+- **Advanced Playback**: Integrated Samsung AVPlay with Cookie/User-Agent support and a LAN HLS proxy for feeds requiring Referer or Origin headers.
 - **Robust Error Handling**: Dedicated fallback states for network offline, resolver failures, and unsupported codecs.
 
 ---
@@ -31,6 +31,10 @@ sportszx/
 │   ├── navigation.js    # Remote control focus & navigation manager
 │   ├── avplay-player.js # Samsung AVPlay player wrapper
 │   └── app.js           # Main application coordinator
+├── proxy/
+│   ├── sportszx_proxy.py        # Referer-aware HLS playlist/segment proxy
+│   ├── sportszx-proxy.service   # Hardened systemd service
+│   └── test_sportszx_proxy.py   # Proxy rewrite tests
 ├── test/
 │   ├── decoder.test.js  # Static unit tests for envelope decoder
 │   └── api-client.js    # Live API integration tests
@@ -106,6 +110,22 @@ Package the `.buildResult` directory and sign it with your security profile:
 tizen package -t wgt -s SportzXProfile -- /path/to/project/.buildResult
 ```
 This will generate `SportzX TV.wgt` inside the `.buildResult` directory.
+
+---
+
+## Referer-aware HLS proxy
+
+Samsung AVPlay cannot reliably attach arbitrary HTTP headers. When a feed includes `Referer` or `Origin`, the TV app routes it through the LAN proxy configured in `js/config.js`. Direct streams continue to bypass the proxy. Copy `js/proxy-private.example.js` to the ignored `js/proxy-private.js` and set the same token as the server environment file before packaging; the token must never be committed.
+
+The proxy runs without third-party Python packages. It forwards byte ranges and rewrites nested playlists, segment URLs, media maps, and encryption-key URIs. Configure a long token and restrict clients to the local subnet:
+
+```ini
+SPORTSZX_PROXY_TOKEN=<long-random-token>
+SPORTSZX_ALLOWED_NETWORKS=192.168.1.0/24,127.0.0.0/8
+SPORTSZX_UPSTREAM_TIMEOUT=15
+```
+
+Install `sportszx_proxy.py` under `/opt/sportszx-proxy/`, the environment file as `/etc/sportszx-proxy.env` with mode `0600`, and the unit as `/etc/systemd/system/sportszx-proxy.service`. Then enable it with `systemctl enable --now sportszx-proxy`. If a host firewall is enabled, allow TCP port `8099` from the LAN subnet only.
 
 ---
 
